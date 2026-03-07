@@ -108,6 +108,39 @@ export interface AIEditResponse {
   error?: string;
 }
 
+// Web Search types
+export interface WebSearchResult {
+  title: string;
+  link: string;
+  snippet: string;
+  position: number;
+}
+
+export interface WebSearchResponse {
+  success: boolean;
+  results?: WebSearchResult[];
+  error?: string;
+}
+
+export interface PageFetchResult {
+  success: boolean;
+  url: string;
+  title?: string;
+  markdown?: string;
+  byteSize?: number;
+  error?: string;
+}
+
+export type SourceFetchStatus = 'pending' | 'fetching' | 'done' | 'failed';
+
+export interface SourceFetchProgress {
+  url: string;
+  title?: string;
+  status: SourceFetchStatus;
+  byteSize?: number;
+  error?: string;
+}
+
 export interface ImageSaveResult {
   success: boolean;
   relativePath?: string;
@@ -200,11 +233,16 @@ export interface ElectronAPI {
   listGeminiModels: () => Promise<AIModelsResponse>;
   getAIProviderStatuses: () => Promise<AIProviderStatuses>;
 
+  // Web Search operations
+  webSearch: (query: string, numResults?: number, requestId?: string) => Promise<WebSearchResponse>;
+  webFetchPage: (url: string, requestId?: string) => Promise<PageFetchResult>;
+  hasSerperKey: () => Promise<boolean>;
+
   // Secure Storage operations (API Keys)
-  setApiKey: (provider: 'xai' | 'claude' | 'openai' | 'gemini', key: string) => Promise<{ success: boolean; error?: string }>;
-  hasApiKeyInStorage: (provider: 'xai' | 'claude' | 'openai' | 'gemini') => Promise<boolean>;
-  deleteApiKey: (provider: 'xai' | 'claude' | 'openai' | 'gemini') => Promise<{ success: boolean; error?: string }>;
-  getApiKeyStatus: () => Promise<{ xai: boolean; claude: boolean; openai: boolean; gemini: boolean }>;
+  setApiKey: (provider: 'xai' | 'claude' | 'openai' | 'gemini' | 'serper', key: string) => Promise<{ success: boolean; error?: string }>;
+  hasApiKeyInStorage: (provider: 'xai' | 'claude' | 'openai' | 'gemini' | 'serper') => Promise<boolean>;
+  deleteApiKey: (provider: 'xai' | 'claude' | 'openai' | 'gemini' | 'serper') => Promise<{ success: boolean; error?: string }>;
+  getApiKeyStatus: () => Promise<{ xai: boolean; claude: boolean; openai: boolean; gemini: boolean; serper: boolean }>;
 }
 
 declare global {

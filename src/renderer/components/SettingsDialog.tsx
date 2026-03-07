@@ -157,7 +157,7 @@ function AIProviderSection({ title, provider, config, onModelToggle, expanded, o
 
 // Sub-component: API Key Input
 interface APIKeyInputProps {
-    provider: 'xai' | 'claude' | 'openai' | 'gemini';
+    provider: 'xai' | 'claude' | 'openai' | 'gemini' | 'serper';
     label: string;
     hasKey: boolean;
     value: string;
@@ -324,11 +324,13 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
         claude: boolean;
         openai: boolean;
         gemini: boolean;
+        serper: boolean;
     }>({
         xai: false,
         claude: false,
         openai: false,
         gemini: false,
+        serper: false,
     });
 
     const [apiKeyInputs, setApiKeyInputs] = useState<{
@@ -336,11 +338,13 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
         claude: string;
         openai: string;
         gemini: string;
+        serper: string;
     }>({
         xai: '',
         claude: '',
         openai: '',
         gemini: '',
+        serper: '',
     });
 
     // Testing state for individual providers
@@ -404,7 +408,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     }, []);
 
     // API Key handlers
-    const handleSetApiKey = useCallback(async (provider: 'xai' | 'claude' | 'openai' | 'gemini') => {
+    const handleSetApiKey = useCallback(async (provider: 'xai' | 'claude' | 'openai' | 'gemini' | 'serper') => {
         const key = apiKeyInputs[provider].trim();
         if (!key) {
             dispatch({
@@ -421,8 +425,10 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
         if (result.success) {
             setApiKeyInputs(prev => ({ ...prev, [provider]: '' }));
             setApiKeyStatus(prev => ({ ...prev, [provider]: true }));
-            invalidateModelsForProvider(provider);
-            await refreshProviderStatuses();
+            if (provider !== 'serper') {
+                invalidateModelsForProvider(provider);
+                await refreshProviderStatuses();
+            }
             dispatch({
                 type: 'SHOW_NOTIFICATION',
                 payload: {
@@ -441,12 +447,14 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
         }
     }, [apiKeyInputs, dispatch, refreshProviderStatuses, invalidateModelsForProvider]);
 
-    const handleClearApiKey = useCallback(async (provider: 'xai' | 'claude' | 'openai' | 'gemini') => {
+    const handleClearApiKey = useCallback(async (provider: 'xai' | 'claude' | 'openai' | 'gemini' | 'serper') => {
         const result = await window.electronAPI.deleteApiKey(provider);
         if (result.success) {
             setApiKeyStatus(prev => ({ ...prev, [provider]: false }));
-            invalidateModelsForProvider(provider);
-            await refreshProviderStatuses();
+            if (provider !== 'serper') {
+                invalidateModelsForProvider(provider);
+                await refreshProviderStatuses();
+            }
             dispatch({
                 type: 'SHOW_NOTIFICATION',
                 payload: {
@@ -465,27 +473,41 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
         }
     }, [dispatch, refreshProviderStatuses, invalidateModelsForProvider]);
 
-    const handleTestProvider = useCallback(async (provider: 'xai' | 'claude' | 'openai' | 'gemini') => {
+    const handleTestProvider = useCallback(async (provider: 'xai' | 'claude' | 'openai' | 'gemini' | 'serper') => {
         setTestingProvider(provider);
         try {
-            const statuses = await cacheRefreshStatuses();
-            const status = statuses[provider];
-            if (status.enabled && status.status === 'success') {
+            if (provider === 'serper') {
+                // Test Serper by running a simple search
+                const result = await window.electronAPI.webSearch('test', 1);
                 dispatch({
                     type: 'SHOW_NOTIFICATION',
                     payload: {
-                        message: `${provider} connection successful`,
-                        severity: 'success',
+                        message: result.success
+                            ? 'Serper (Web Search) connection successful'
+                            : `Serper connection failed: ${result.error || 'Unknown error'}`,
+                        severity: result.success ? 'success' : 'error',
                     },
                 });
-            } else if (status.enabled && status.status === 'error') {
-                dispatch({
-                    type: 'SHOW_NOTIFICATION',
-                    payload: {
-                        message: `${provider} connection failed — API key may be invalid or the service is unavailable`,
-                        severity: 'error',
-                    },
-                });
+            } else {
+                const statuses = await cacheRefreshStatuses();
+                const status = statuses[provider];
+                if (status.enabled && status.status === 'success') {
+                    dispatch({
+                        type: 'SHOW_NOTIFICATION',
+                        payload: {
+                            message: `${provider} connection successful`,
+                            severity: 'success',
+                        },
+                    });
+                } else if (status.enabled && status.status === 'error') {
+                    dispatch({
+                        type: 'SHOW_NOTIFICATION',
+                        payload: {
+                            message: `${provider} connection failed — API key may be invalid or the service is unavailable`,
+                            severity: 'error',
+                        },
+                    });
+                }
             }
         } catch {
             dispatch({
@@ -626,6 +648,24 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                     onSet={() => handleSetApiKey('gemini')}
                     onClear={() => handleClearApiKey('gemini')}
                     onTest={() => handleTestProvider('gemini')}
+                />
+
+                <SectionHeader>Web Search</SectionHeader>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontSize: 12 }}>
+                    Enable web search for Insight Forge to find and use real documentation as context.
+                </Typography>
+
+                <APIKeyInput
+                    provider="serper"
+                    label="Serper (Web Search)"
+                    hasKey={apiKeyStatus.serper}
+                    value={apiKeyInputs.serper}
+                    providerStatus={apiKeyStatus.serper ? 'success' : 'unchecked'}
+                    isTesting={testingProvider === 'serper'}
+                    onChange={(value) => setApiKeyInputs(prev => ({ ...prev, serper: value }))}
+                    onSet={() => handleSetApiKey('serper')}
+                    onClear={() => handleClearApiKey('serper')}
+                    onTest={() => handleTestProvider('serper')}
                 />
 
                 {(providerStatuses.xai.enabled || providerStatuses.claude.enabled || providerStatuses.openai.enabled || providerStatuses.gemini.enabled) && (

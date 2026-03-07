@@ -4,6 +4,7 @@ import { callXAiApi, listModels, hasApiKey as hasXaiApiKey, DEFAULT_XAI_MODELS, 
 import { callClaudeApi, callClaudeApiWithSystemPrompt, listClaudeModels, hasApiKey as hasClaudeApiKey, DEFAULT_CLAUDE_MODELS } from './services/claudeApi';
 import { callOpenAIApi, callOpenAIApiWithJsonMode, listOpenAIModels, hasApiKey as hasOpenAIApiKey, DEFAULT_OPENAI_MODELS } from './services/openaiApi';
 import { callGeminiApi, callGeminiApiWithJsonMode, listGeminiModels, hasApiKey as hasGeminiApiKey, DEFAULT_GEMINI_MODELS } from './services/geminiApi';
+import { searchSerper, fetchAndExtractPage, hasSerperKey } from './services/webSearchService';
 import { getDisplayName, formatModelName } from '../shared/modelDisplay';
 
 export interface AIChatRequestData {
@@ -441,6 +442,43 @@ export function registerAIIpcHandlers() {
 
         log('AI IPC: provider status result', result);
         return result;
+    });
+
+    // --- Web Search IPC Handlers ---
+
+    // Web Search via Serper
+    ipcMain.handle('web:search', async (_event, data: { query: string; numResults?: number; requestId?: string }) => {
+        log('AI IPC: web:search', { query: data.query, numResults: data.numResults });
+        const controller = getControllerForRequest(data.requestId);
+        try {
+            const result = await searchSerper(data.query, data.numResults ?? 5, controller?.signal);
+            return result;
+        } catch (error) {
+            logError('AI IPC: web:search failed', error as Error);
+            return { success: false, error: (error as Error).message };
+        } finally {
+            finalizeRequest(data.requestId);
+        }
+    });
+
+    // Fetch & Extract Page Content
+    ipcMain.handle('web:fetch-page', async (_event, data: { url: string; requestId?: string }) => {
+        log('AI IPC: web:fetch-page', { url: data.url });
+        const controller = getControllerForRequest(data.requestId);
+        try {
+            const result = await fetchAndExtractPage(data.url, controller?.signal);
+            return result;
+        } catch (error) {
+            logError('AI IPC: web:fetch-page failed', error as Error);
+            return { success: false, url: data.url, error: (error as Error).message };
+        } finally {
+            finalizeRequest(data.requestId);
+        }
+    });
+
+    // Check if Serper key is available
+    ipcMain.handle('web:has-serper-key', async () => {
+        return hasSerperKey();
     });
 
     log('AI IPC handlers registered');

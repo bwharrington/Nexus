@@ -8,8 +8,14 @@ import { CodeBlock } from './CodeBlock';
 import { ResearchProgress } from './ResearchProgress';
 import { GoDeepProgress } from './GoDeepProgress';
 import { GoDeepButton } from './GoDeepButton';
+<<<<<<< origin/Tech_Dissect
 import { TechResearchProgress } from './TechResearchProgress';
 import type { TechResearchPhase } from '../hooks/useAITechResearch';
+=======
+import { InsightForgeProgress } from './InsightForgeProgress';
+import type { InsightForgePhase } from '../hooks/useAIInsightForge';
+import type { SourceFetchProgress } from '../types/global';
+>>>>>>> local
 
 const MessagesContainer = styled(Box)(({ theme }) => ({
     flex: 1,
@@ -163,12 +169,23 @@ interface ChatMessagesProps {
     onTopicsContinue?: (topics: string[]) => void;
     depthLevel?: GoDeepDepthLevel;
     onDepthLevelChange?: (level: GoDeepDepthLevel) => void;
+<<<<<<< origin/Tech_Dissect
     isTechResearchLoading: boolean;
     techResearchPhase: TechResearchPhase;
     techResearchComplete: boolean;
     techResearchError: string | null;
     techResearchFileName: string | null;
     techResearchQuery: string | null;
+=======
+    isInsightForgeLoading: boolean;
+    insightForgePhase: InsightForgePhase;
+    insightForgeComplete: boolean;
+    insightForgeError: string | null;
+    insightForgeFileName: string | null;
+    insightForgeQuery: string | null;
+    sourceFetchProgress?: SourceFetchProgress[];
+    isWebSearchEnabled?: boolean;
+>>>>>>> local
     hasDiffTab: boolean;
     loadingDisplayText: string;
     error: string | null;
@@ -199,12 +216,23 @@ export function ChatMessages({
     onTopicsContinue,
     depthLevel,
     onDepthLevelChange,
+<<<<<<< origin/Tech_Dissect
     isTechResearchLoading,
     techResearchPhase,
     techResearchComplete,
     techResearchError,
     techResearchFileName,
     techResearchQuery,
+=======
+    isInsightForgeLoading,
+    insightForgePhase,
+    insightForgeComplete,
+    insightForgeError,
+    insightForgeFileName,
+    insightForgeQuery,
+    sourceFetchProgress,
+    isWebSearchEnabled,
+>>>>>>> local
     hasDiffTab,
     loadingDisplayText,
     error,
@@ -283,7 +311,15 @@ export function ChatMessages({
                             <Typography variant="body2">{techResearchQuery}</Typography>
                         </MessageBubble>
                     )}
+<<<<<<< origin/Tech_Dissect
                     <TechResearchProgress techResearchPhase={techResearchPhase} />
+=======
+                    <InsightForgeProgress
+                        insightForgePhase={insightForgePhase}
+                        sourceFetchProgress={sourceFetchProgress}
+                        isWebSearchEnabled={isWebSearchEnabled}
+                    />
+>>>>>>> local
                 </>
             )}
             {techResearchComplete && techResearchFileName && (

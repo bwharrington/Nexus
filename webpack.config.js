@@ -18,6 +18,10 @@ module.exports = [
     resolve: {
       extensions: ['.ts', '.js']
     },
+    externals: {
+      jsdom: 'commonjs jsdom',
+      turndown: 'commonjs turndown',
+    },
     output: {
       path: path.join(__dirname, 'dist'),
       filename: 'main.js'

@@ -198,6 +198,7 @@ export function AIChatDialog({
 
     // AI Tech Research hook
     const {
+<<<<<<< origin/Tech_Dissect
         submitTechResearch,
         cancelTechResearch,
         dismissTechResearchProgress,
@@ -208,6 +209,20 @@ export function AIChatDialog({
         techResearchFileName,
     } = useAITechResearch();
     const [techResearchQuery, setTechResearchQuery] = useState<string | null>(null);
+=======
+        submitInsightForge,
+        cancelInsightForge,
+        dismissInsightForgeProgress,
+        isInsightForgeLoading,
+        insightForgeError,
+        insightForgePhase,
+        insightForgeComplete,
+        insightForgeFileName,
+        sourceFetchProgress,
+        isWebSearchEnabled,
+    } = useAIInsightForge();
+    const [insightForgeQuery, setInsightForgeQuery] = useState<string | null>(null);
+>>>>>>> local
 
     // Rotating loading messages with typewriter effect
     const { displayText: loadingDisplayText } = useEditLoadingMessage(isEditLoading);
@@ -644,12 +659,23 @@ export function AIChatDialog({
                         onTopicsContinue={handleTopicsContinue}
                         depthLevel={goDeepDepthLevel}
                         onDepthLevelChange={setGoDeepDepthLevel}
+<<<<<<< origin/Tech_Dissect
                         isTechResearchLoading={isTechResearchLoading}
                         techResearchPhase={techResearchPhase}
                         techResearchComplete={techResearchComplete}
                         techResearchError={techResearchError}
                         techResearchFileName={techResearchFileName}
                         techResearchQuery={techResearchQuery}
+=======
+                        isInsightForgeLoading={isInsightForgeLoading}
+                        insightForgePhase={insightForgePhase}
+                        insightForgeComplete={insightForgeComplete}
+                        insightForgeError={insightForgeError}
+                        insightForgeFileName={insightForgeFileName}
+                        insightForgeQuery={insightForgeQuery}
+                        sourceFetchProgress={sourceFetchProgress}
+                        isWebSearchEnabled={isWebSearchEnabled}
+>>>>>>> local
                         hasDiffTab={hasDiffTab}
                         loadingDisplayText={loadingDisplayText}
                         error={error}

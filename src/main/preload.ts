@@ -124,12 +124,19 @@ const electronAPI = {
   listGeminiModels: () => ipcRenderer.invoke('ai:list-gemini-models'),
   getAIProviderStatuses: () => ipcRenderer.invoke('ai:get-provider-status'),
 
+  // Web Search operations
+  webSearch: (query: string, numResults?: number, requestId?: string) =>
+    ipcRenderer.invoke('web:search', { query, numResults, requestId }),
+  webFetchPage: (url: string, requestId?: string) =>
+    ipcRenderer.invoke('web:fetch-page', { url, requestId }),
+  hasSerperKey: () => ipcRenderer.invoke('web:has-serper-key'),
+
   // Secure Storage operations (API Keys)
-  setApiKey: (provider: 'xai' | 'claude' | 'openai' | 'gemini', key: string) =>
+  setApiKey: (provider: 'xai' | 'claude' | 'openai' | 'gemini' | 'serper', key: string) =>
     ipcRenderer.invoke('secure-storage:set-api-key', { provider, key }),
-  hasApiKeyInStorage: (provider: 'xai' | 'claude' | 'openai' | 'gemini') =>
+  hasApiKeyInStorage: (provider: 'xai' | 'claude' | 'openai' | 'gemini' | 'serper') =>
     ipcRenderer.invoke('secure-storage:has-api-key', provider),
-  deleteApiKey: (provider: 'xai' | 'claude' | 'openai' | 'gemini') =>
+  deleteApiKey: (provider: 'xai' | 'claude' | 'openai' | 'gemini' | 'serper') =>
     ipcRenderer.invoke('secure-storage:delete-api-key', provider),
   getApiKeyStatus: () => ipcRenderer.invoke('secure-storage:get-key-status'),
 };

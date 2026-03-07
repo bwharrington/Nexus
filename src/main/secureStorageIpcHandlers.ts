@@ -12,6 +12,7 @@ import { validateApiKey as validateXAiKey } from './services/xaiApi';
 import { validateApiKey as validateClaudeKey } from './services/claudeApi';
 import { validateApiKey as validateOpenAIKey } from './services/openaiApi';
 import { validateApiKey as validateGeminiKey } from './services/geminiApi';
+import { validateSerperKey } from './services/webSearchService';
 
 export interface SetApiKeyData {
     provider: ApiProvider;
@@ -23,6 +24,7 @@ export interface ApiKeyStatusResponse {
     claude: boolean;
     openai: boolean;
     gemini: boolean;
+    serper: boolean;
 }
 
 export function registerSecureStorageIpcHandlers() {
@@ -47,6 +49,9 @@ export function registerSecureStorageIpcHandlers() {
                     break;
                 case 'gemini':
                     validationResult = await validateGeminiKey(data.key);
+                    break;
+                case 'serper':
+                    validationResult = await validateSerperKey(data.key);
                     break;
                 default:
                     return {
@@ -104,6 +109,7 @@ export function registerSecureStorageIpcHandlers() {
             claude: hasApiKey('claude'),
             openai: hasApiKey('openai'),
             gemini: hasApiKey('gemini'),
+            serper: hasApiKey('serper'),
         };
     });
 
