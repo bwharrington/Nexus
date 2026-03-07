@@ -184,6 +184,7 @@ export interface ElectronAPI {
   onMenuShowInFolder: (callback: () => void) => () => void;
   onMenuOpenRecent: (callback: (filePath: string) => void) => () => void;
   onExternalFileChange: (callback: (filePath: string) => void) => () => void;
+  onExternalFileRename: (callback: (filePath: string) => void) => () => void;
   onOpenFilesFromArgs: (callback: (filePaths: string[]) => void) => () => void;
 
   // AI Chat operations

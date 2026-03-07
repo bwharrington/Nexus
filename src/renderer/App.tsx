@@ -115,6 +115,67 @@ function AppContent() {
     // AI Chat attached files state (lifted here so TabBar can also access it)
     const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
 
+    // Tracks whether the context doc was enabled/disabled so the preference is
+    // preserved when the active file changes and the old one gets demoted.
+    const contextDocEnabledRef = useRef(true);
+
+    // Keep the context doc chip in sync with the active file at all times,
+    // not just when the AI chat dialog is open.
+    useEffect(() => {
+        const activeFile = state.activeFileId
+            ? state.openFiles.find(f => f.id === state.activeFileId)
+            : null;
+
+        const isValidContextFile = activeFile &&
+            activeFile.path &&
+            (activeFile.fileType === 'markdown' || activeFile.fileType === 'text');
+
+        setAttachedFiles(prev => {
+            const currentContextDoc = prev.find(f => f.isContextDoc);
+            const manualFiles = prev.filter(f => !f.isContextDoc);
+
+            if (!isValidContextFile) {
+                if (!currentContextDoc) return prev;
+                const demoted: AttachedFile = {
+                    name: currentContextDoc.name,
+                    path: currentContextDoc.path,
+                    type: currentContextDoc.type,
+                    size: currentContextDoc.size,
+                };
+                return [...manualFiles, demoted];
+            }
+
+            if (currentContextDoc?.path === activeFile.path) return prev;
+
+            if (currentContextDoc) {
+                contextDocEnabledRef.current = currentContextDoc.enabled !== false;
+            }
+
+            const newContextDoc: AttachedFile = {
+                name: activeFile.name,
+                path: activeFile.path!,
+                type: activeFile.fileType,
+                size: 0,
+                isContextDoc: true,
+                enabled: contextDocEnabledRef.current,
+            };
+
+            const deduplicatedManual = manualFiles.filter(f => f.path !== activeFile.path);
+
+            if (currentContextDoc) {
+                const demoted: AttachedFile = {
+                    name: currentContextDoc.name,
+                    path: currentContextDoc.path,
+                    type: currentContextDoc.type,
+                    size: currentContextDoc.size,
+                };
+                return [newContextDoc, ...deduplicatedManual, demoted];
+            }
+
+            return [newContextDoc, ...deduplicatedManual];
+        });
+    }, [state.activeFileId, state.openFiles]);
+
     const handleAddAttachedFiles = useCallback((newFiles: AttachedFile[]) => {
         setAttachedFiles(prev => [...prev, ...newFiles]);
     }, []);
@@ -127,6 +188,8 @@ function AppContent() {
         const filePath = file.path;
         if (!filePath) return;
         setAttachedFiles(prev => {
+            // Never add a duplicate if the file is already the active context doc
+            if (prev.some(f => f.path === filePath && f.isContextDoc)) return prev;
             const existing = prev.find(f => f.path === filePath && !f.isContextDoc);
             if (existing) {
                 return prev.filter(f => f !== existing);

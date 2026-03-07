@@ -287,9 +287,16 @@ function watchFile(filePath: string) {
         const watcher = fsSync.watch(filePath, (eventType) => {
             if (eventType === 'change') {
                 log('File changed externally', { filePath });
-                // Notify renderer
                 if (mainWindow && !mainWindow.isDestroyed()) {
                     mainWindow.webContents.send('file:external-change', filePath);
+                }
+            } else if (eventType === 'rename') {
+                // 'rename' fires when the file is renamed or deleted externally.
+                // Stop watching the now-invalid path and notify the renderer.
+                log('File renamed/deleted externally', { filePath });
+                unwatchFile(filePath);
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                    mainWindow.webContents.send('file:external-rename', filePath);
                 }
             }
         });

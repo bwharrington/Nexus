@@ -288,74 +288,7 @@ export function AIChatDialog({
         }
     }, [open]);
 
-    // Track the enabled state of the context doc across active-file changes
-    const contextDocEnabledRef = useRef(true);
-
-    // Update context doc chip when the active file changes (while open or on open)
-    useEffect(() => {
-        if (!open) return;
-
-        const activeFile = editorState.activeFileId
-            ? editorState.openFiles.find(f => f.id === editorState.activeFileId)
-            : null;
-
-        const isValidContextFile = activeFile &&
-            activeFile.path &&
-            (activeFile.fileType === 'markdown' || activeFile.fileType === 'text');
-
-        setAttachedFiles(prev => {
-            const currentContextDoc = prev.find(f => f.isContextDoc);
-            const manualFiles = prev.filter(f => !f.isContextDoc);
-
-            if (!isValidContextFile) {
-                // No valid active file — demote context doc to regular attached file if present
-                if (!currentContextDoc) return prev;
-                const demoted: AttachedFile = {
-                    name: currentContextDoc.name,
-                    path: currentContextDoc.path,
-                    type: currentContextDoc.type,
-                    size: currentContextDoc.size,
-                };
-                return [...manualFiles, demoted];
-            }
-
-            if (currentContextDoc?.path === activeFile.path) {
-                // Same file — no change needed
-                return prev;
-            }
-
-            // Preserve the enabled state the user set on the previous context doc
-            if (currentContextDoc) {
-                contextDocEnabledRef.current = currentContextDoc.enabled !== false;
-            }
-
-            const newContextDoc: AttachedFile = {
-                name: activeFile.name,
-                path: activeFile.path!,
-                type: activeFile.fileType,
-                size: 0,
-                isContextDoc: true,
-                enabled: contextDocEnabledRef.current,
-            };
-
-            // If the new active file was already manually attached, remove that duplicate entry
-            const deduplicatedManual = manualFiles.filter(f => f.path !== activeFile.path);
-
-            // Demote old context doc to regular attachment (unless it was the only chip)
-            if (currentContextDoc) {
-                const demoted: AttachedFile = {
-                    name: currentContextDoc.name,
-                    path: currentContextDoc.path,
-                    type: currentContextDoc.type,
-                    size: currentContextDoc.size,
-                };
-                return [newContextDoc, ...deduplicatedManual, demoted];
-            }
-
-            // No previous context doc — just add the new one
-            return [newContextDoc, ...deduplicatedManual];
-        });
-    }, [open, editorState.activeFileId, editorState.openFiles]);
+    // Context doc sync is handled in App.tsx so it works whether the dialog is open or not.
 
     // Detect when context document is saved and trigger glow animation
     useEffect(() => {

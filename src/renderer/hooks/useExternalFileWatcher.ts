@@ -42,27 +42,9 @@ export function useExternalFileWatcher({ openFiles, dispatch }: UseExternalFileW
     // Key: file path, Value: timeout ID
     const debounceTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
-    // Subscribe to the IPC event once on mount, clean up on unmount.
-    // The callback reads from the ref so it never goes stale.
+    // Subscribe to the IPC events once on mount, clean up on unmount.
+    // The callbacks read from the ref so they never go stale.
     useEffect(() => {
-        const cleanup = window.electronAPI.onExternalFileChange(async (filePath: string) => {
-            console.log('[useExternalFileWatcher] External file change detected:', filePath);
-
-            // Clear any existing debounce timer for this file
-            const existingTimer = debounceTimersRef.current.get(filePath);
-            if (existingTimer) {
-                clearTimeout(existingTimer);
-            }
-
-            // Set a new debounce timer (300ms is enough to coalesce multiple fs events)
-            const timer = setTimeout(async () => {
-                debounceTimersRef.current.delete(filePath);
-                await handleFileChange(filePath);
-            }, 300);
-
-            debounceTimersRef.current.set(filePath, timer);
-        });
-
         // Helper function that does the actual file change handling
         const handleFileChange = async (filePath: string) => {
 
@@ -117,11 +99,49 @@ export function useExternalFileWatcher({ openFiles, dispatch }: UseExternalFileW
             }
         };
 
+        const cleanupChange = window.electronAPI.onExternalFileChange(async (filePath: string) => {
+            console.log('[useExternalFileWatcher] External file change detected:', filePath);
+
+            // Clear any existing debounce timer for this file
+            const existingTimer = debounceTimersRef.current.get(filePath);
+            if (existingTimer) {
+                clearTimeout(existingTimer);
+            }
+
+            // Set a new debounce timer (300ms is enough to coalesce multiple fs events)
+            const timer = setTimeout(async () => {
+                debounceTimersRef.current.delete(filePath);
+                await handleFileChange(filePath);
+            }, 300);
+
+            debounceTimersRef.current.set(filePath, timer);
+        });
+
+        const cleanupRename = window.electronAPI.onExternalFileRename((filePath: string) => {
+            console.log('[useExternalFileWatcher] External file rename/delete detected:', filePath);
+
+            const openFile = openFilesRef.current.find(f => f.path === filePath);
+            if (!openFile) return;
+
+            // Detach the file from its saved path and mark it dirty so the user
+            // knows it needs to be saved again under a name of their choosing.
+            const fileName = filePath.split(/[\\/]/).pop() || filePath;
+            dispatch({ type: 'DETACH_FILE_PATH', payload: { id: openFile.id } });
+            dispatch({
+                type: 'SHOW_NOTIFICATION',
+                payload: {
+                    message: `"${fileName}" was renamed or moved externally. The file needs to be saved again.`,
+                    severity: 'warning',
+                },
+            });
+        });
+
         return () => {
             // Clear all pending debounce timers on unmount
             debounceTimersRef.current.forEach(timer => clearTimeout(timer));
             debounceTimersRef.current.clear();
-            cleanup();
+            cleanupChange();
+            cleanupRename();
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []); // Runs once on mount. dispatch is stable; openFiles read via ref.

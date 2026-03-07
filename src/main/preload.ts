@@ -98,6 +98,10 @@ const electronAPI = {
     ipcRenderer.on('file:external-change', (_event, filePath: string) => callback(filePath));
     return () => ipcRenderer.removeAllListeners('file:external-change');
   },
+  onExternalFileRename: (callback: (filePath: string) => void) => {
+    ipcRenderer.on('file:external-rename', (_event, filePath: string) => callback(filePath));
+    return () => ipcRenderer.removeAllListeners('file:external-rename');
+  },
   onOpenFilesFromArgs: (callback: (filePaths: string[]) => void) => {
     ipcRenderer.on('open-files-from-args', (_event, filePaths: string[]) => callback(filePaths));
     return () => ipcRenderer.removeAllListeners('open-files-from-args');

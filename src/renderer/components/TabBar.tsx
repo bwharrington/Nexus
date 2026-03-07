@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Tabs, Tab, Box, IconButton, Tooltip, styled, Menu, MenuItem, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField } from '@mui/material';
 import {
     CloseIcon,
@@ -39,14 +39,20 @@ const TabContent = styled(Box)({
     display: 'flex',
     alignItems: 'center',
     gap: 4,
-    maxWidth: 200,
 });
 
 const FileName = styled('span')({
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
-    maxWidth: 120,
+});
+
+const MeasureContainer = styled(Box)({
+    position: 'absolute',
+    visibility: 'hidden',
+    pointerEvents: 'none',
+    whiteSpace: 'nowrap',
+    display: 'flex',
+    top: 0,
+    left: 0,
 });
 
 interface FileTabProps {
@@ -142,6 +148,9 @@ export function TabBar({ attachedFiles, onToggleFileAttachment, onToggleContextD
     const dispatch = useEditorDispatch();
     const [draggedIndex, setDraggedIndex] = React.useState<number | null>(null);
     const [contextMenu, setContextMenu] = React.useState<{ mouseX: number; mouseY: number; fileId: string } | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const measureRef = useRef<HTMLDivElement>(null);
+    const [splitIndex, setSplitIndex] = useState<number>(Infinity);
     const [renameDialog, setRenameDialog] = React.useState<{ open: boolean; fileId: string; currentName: string }>({ open: false, fileId: '', currentName: '' });
     const [newFileName, setNewFileName] = React.useState('');
     const { renameFile, showInFolder, saveFileAs } = useFileOperations();
@@ -274,39 +283,90 @@ export function TabBar({ attachedFiles, onToggleFileAttachment, onToggleContextD
         setNewFileName('');
     }, [renameDialog.fileId, renameDialog.currentName, newFileName, renameFile]);
 
+    // Recalculate which files go on row 1 vs row 2.
+    // Each measured span gives the text width; we add TAB_OVERHEAD px for
+    // padding (12px * 2), icons (~16px each), gaps, and the MUI indicator.
+    const TAB_OVERHEAD = 80;
+
+    const recalcSplit = useCallback(() => {
+        if (!containerRef.current || !measureRef.current) return;
+        const containerWidth = containerRef.current.offsetWidth;
+        const spans = measureRef.current.querySelectorAll('span');
+        let accumulated = 0;
+        let split = Infinity;
+        for (let i = 0; i < spans.length; i++) {
+            accumulated += spans[i].offsetWidth + TAB_OVERHEAD;
+            if (accumulated > containerWidth) {
+                split = i;
+                break;
+            }
+        }
+        setSplitIndex(split);
+    }, []);
+
+    useEffect(() => {
+        if (!containerRef.current) return;
+        const observer = new ResizeObserver(() => recalcSplit());
+        observer.observe(containerRef.current);
+        recalcSplit();
+        return () => observer.disconnect();
+    }, [state.openFiles, recalcSplit]);
+
     if (state.openFiles.length === 0) {
         return null;
     }
 
+    const row1Files = state.openFiles.slice(0, splitIndex);
+    const row2Files = state.openFiles.slice(splitIndex);
+
+    const renderTab = (file: IFile, globalIndex: number) => (
+        <StyledTab
+            key={file.id}
+            value={file.id}
+            label={<FileTab file={file} isActive={file.id === state.activeFileId} />}
+            draggable
+            onDragStart={(e) => handleDragStart(e, globalIndex)}
+            onDragOver={(e) => handleDragOver(e, globalIndex)}
+            onDragEnd={handleDragEnd}
+            onContextMenu={(e) => handleContextMenu(e, file.id)}
+            sx={{
+                cursor: 'grab',
+                '&:active': { cursor: 'grabbing' },
+                opacity: draggedIndex === globalIndex ? 0.5 : 1,
+            }}
+        />
+    );
+
     return (
-        <TabContainer>
+        <TabContainer ref={containerRef} sx={{ position: 'relative' }}>
+            {/* Hidden measurement layer — one span per tab to read natural text widths */}
+            <MeasureContainer ref={measureRef} aria-hidden="true">
+                {state.openFiles.map(f => <span key={f.id}>{f.name}</span>)}
+            </MeasureContainer>
+
+            {/* Row 1 — fills available width, no scroll */}
             <Tabs
-                value={state.activeFileId || false}
+                value={state.openFiles.find(f => f.id === state.activeFileId) && row1Files.some(f => f.id === state.activeFileId) ? state.activeFileId : false}
                 onChange={handleTabChange}
                 variant="scrollable"
                 scrollButtons="auto"
                 sx={{ minHeight: 40 }}
             >
-                {state.openFiles.map((file, index) => (
-                    <StyledTab
-                        key={file.id}
-                        value={file.id}
-                        label={<FileTab file={file} isActive={file.id === state.activeFileId} />}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, index)}
-                        onDragOver={(e) => handleDragOver(e, index)}
-                        onDragEnd={handleDragEnd}
-                        onContextMenu={(e) => handleContextMenu(e, file.id)}
-                        sx={{
-                            cursor: 'grab',
-                            '&:active': {
-                                cursor: 'grabbing',
-                            },
-                            opacity: draggedIndex === index ? 0.5 : 1,
-                        }}
-                    />
-                ))}
+                {row1Files.map((file, i) => renderTab(file, i))}
             </Tabs>
+
+            {/* Row 2 — only shown when there are overflow tabs; scrollable as fallback */}
+            {row2Files.length > 0 && (
+                <Tabs
+                    value={row2Files.some(f => f.id === state.activeFileId) ? state.activeFileId : false}
+                    onChange={handleTabChange}
+                    variant="scrollable"
+                    scrollButtons="auto"
+                    sx={{ minHeight: 40, borderTop: 1, borderColor: 'divider' }}
+                >
+                    {row2Files.map((file, i) => renderTab(file, splitIndex + i))}
+                </Tabs>
+            )}
             <Menu
                 open={contextMenu !== null}
                 onClose={handleContextMenuClose}

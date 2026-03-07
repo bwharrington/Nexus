@@ -123,7 +123,8 @@ type EditorAction =
     | { type: 'OPEN_DIFF_TAB'; payload: { sourceFileId: string; originalContent: string; modifiedContent: string; hunks: DiffHunk[]; summary?: string } }
     | { type: 'UPDATE_DIFF_SESSION'; payload: { diffTabId: string; hunks: DiffHunk[]; currentHunkIndex?: number } }
     | { type: 'CLOSE_DIFF_TAB'; payload: { diffTabId: string } }
-    | { type: 'UPDATE_FILE_NAME'; payload: { id: string; name: string } };
+    | { type: 'UPDATE_FILE_NAME'; payload: { id: string; name: string } }
+    | { type: 'DETACH_FILE_PATH'; payload: { id: string } };
 
 // Reducer
 function editorReducer(state: EditorState, action: EditorAction): EditorState {
@@ -365,6 +366,20 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                 openFiles: state.openFiles.map(f =>
                     f.id === action.payload.id
                         ? { ...f, name: action.payload.name }
+                        : f
+                ),
+            };
+        }
+
+        case 'DETACH_FILE_PATH': {
+            // Called when the file has been renamed or deleted externally.
+            // Clears the saved path so the file behaves like an unsaved/virtual
+            // file, and marks it dirty so the user knows it needs to be saved.
+            return {
+                ...state,
+                openFiles: state.openFiles.map(f =>
+                    f.id === action.payload.id
+                        ? { ...f, path: null, isDirty: true }
                         : f
                 ),
             };
