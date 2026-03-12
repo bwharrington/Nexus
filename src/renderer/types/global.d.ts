@@ -196,6 +196,7 @@ export interface ElectronAPI {
   // Dialog operations
   confirmClose: (fileName: string) => Promise<ConfirmCloseResult>;
   showExternalChangeDialog: (fileName: string) => Promise<'reload' | 'keep'>;
+  confirmOverwriteExternal: (fileName: string) => Promise<'overwrite' | 'cancel'>;
   openFileDialog: (options: { properties: string[] }) => Promise<{ canceled: boolean; filePaths: string[] }>;
   
   // Window operations

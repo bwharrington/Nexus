@@ -21,7 +21,8 @@
       "Bash(node -e \"const {Agent} = require\\(''undici''\\); console.log\\(typeof Agent\\)\")",
       "Bash(node -e \"const {getGlobalDispatcher, setGlobalDispatcher} = require\\(''node:http''\\); console.log\\(typeof getGlobalDispatcher\\)\")",
       "Bash(node -e \":*)",
-      "Bash(git -C \"c:/Projects/MarkdownPlus\" status)"
+      "Bash(git -C \"c:/Projects/MarkdownPlus\" status)",
+      "Bash(xargs grep -l \"insightforge\\\\|InsightForge\")"
     ]
   }
 }

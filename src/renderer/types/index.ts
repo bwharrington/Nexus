@@ -22,6 +22,7 @@ export interface IFile {
   fileType: FileType; // Type of file for rendering
   sourceFileId?: string; // For diff tabs: ID of the original file being diffed
   diffSession?: import('./diffTypes').DiffSession; // For diff tabs: the diff session data
+  pendingExternalPath?: string; // set when user declines external reload in prompt mode
 }
 
 // Editor state interface

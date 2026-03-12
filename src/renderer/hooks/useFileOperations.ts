@@ -198,6 +198,12 @@ export function useFileOperations() {
             return saveFileAs(file.id);
         }
 
+        // If a pending external update exists, confirm before overwriting
+        if (file.pendingExternalPath) {
+            const choice = await window.electronAPI.confirmOverwriteExternal(file.name);
+            if (choice === 'cancel') return false;
+        }
+
         // Unwatch file before saving to prevent file watcher from detecting our own save
         await window.electronAPI.unwatchFile(file.path);
 

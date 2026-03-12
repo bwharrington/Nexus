@@ -116,6 +116,7 @@ type EditorAction =
     | { type: 'DISMISS_NOTIFICATION'; payload: { id: string } }
     | { type: 'RELOAD_FILE'; payload: { id: string; content: string } }
     | { type: 'UPDATE_FILE_CONTENT'; payload: { id: string; content: string; lineEnding: 'CRLF' | 'LF' } }
+    | { type: 'SET_PENDING_EXTERNAL_PATH'; payload: { id: string; path: string | null } }
     | { type: 'REORDER_TABS'; payload: { fromIndex: number; toIndex: number } }
     | { type: 'UNDO'; payload: { id: string } }
     | { type: 'REDO'; payload: { id: string } }
@@ -243,7 +244,12 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                 ...state,
                 openFiles: state.openFiles.map(f =>
                     f.id === action.payload.id
-                        ? { ...f, isDirty: action.payload.isDirty }
+                        ? {
+                            ...f,
+                            isDirty: action.payload.isDirty,
+                            // Clear pending external path when file is saved (isDirty → false)
+                            ...(action.payload.isDirty === false ? { pendingExternalPath: undefined } : {}),
+                        }
                         : f
                 ),
             };
@@ -351,10 +357,22 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
                             originalContent: action.payload.content,
                             lineEnding: action.payload.lineEnding || f.lineEnding,
                             isDirty: false,
+                            pendingExternalPath: undefined,
                             undoStack: [action.payload.content],
                             redoStack: [],
                             undoStackPointer: 0,
                         }
+                        : f
+                ),
+            };
+        }
+
+        case 'SET_PENDING_EXTERNAL_PATH': {
+            return {
+                ...state,
+                openFiles: state.openFiles.map(f =>
+                    f.id === action.payload.id
+                        ? { ...f, pendingExternalPath: action.payload.path ?? undefined }
                         : f
                 ),
             };

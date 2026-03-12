@@ -141,13 +141,17 @@ export function useExternalFileWatcher({ openFiles, dispatch, silentFileUpdates 
                     if (result === 'reload') {
                         await reloadFile(openFile, filePath);
                     } else {
-                        // User chose to keep their current content. Mark the file dirty so
-                        // the save icon signals that the on-disk version now differs.
+                        // User chose to keep their current content. Mark the file dirty and
+                        // store the pending external path so the tab can show a refresh button.
                         dispatch({
                             type: 'SET_DIRTY',
                             payload: { id: openFile.id, isDirty: true },
                         });
-                        console.log('[useExternalFileWatcher] User kept local content — marked file dirty', { fileName });
+                        dispatch({
+                            type: 'SET_PENDING_EXTERNAL_PATH',
+                            payload: { id: openFile.id, path: filePath },
+                        });
+                        console.log('[useExternalFileWatcher] User kept local content — marked file dirty, pending refresh available', { fileName });
                     }
                 }
             } catch (error) {

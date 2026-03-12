@@ -33,6 +33,7 @@ const electronAPI = {
   // Dialog operations
   confirmClose: (fileName: string) => ipcRenderer.invoke('dialog:confirm-close', fileName),
   showExternalChangeDialog: (fileName: string) => ipcRenderer.invoke('dialog:external-change', fileName),
+  confirmOverwriteExternal: (fileName: string) => ipcRenderer.invoke('dialog:confirm-overwrite-external', fileName),
   openFileDialog: (options: { properties: string[] }) => ipcRenderer.invoke('dialog:open-file', options),
   readFileForAttachment: (filePath: string) => ipcRenderer.invoke('file:read-for-attachment', filePath),
 

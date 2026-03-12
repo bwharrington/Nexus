@@ -633,10 +633,23 @@ function registerIpcHandlers() {
             defaultId: 0,
             title: 'File Changed Externally',
             message: `"${fileName}" has been changed externally.`,
-            detail: 'Would you like to refresh it with the latest changes?',
+            detail: 'Would you like to reload it with the latest changes?\n\nSelecting "No" keeps your current version — saving will overwrite the external changes.',
         });
 
         return result.response === 0 ? 'reload' : 'keep';
+    });
+
+    // Dialog: Confirm overwrite of externally changed file
+    ipcMain.handle('dialog:confirm-overwrite-external', async (_event, fileName: string) => {
+        const result = await dialog.showMessageBox(mainWindow!, {
+            type: 'warning',
+            buttons: ['Overwrite', 'Cancel'],
+            defaultId: 1,
+            title: 'Overwrite External Changes?',
+            message: `Save "${fileName}"?`,
+            detail: 'The file was changed by an external editor. Saving will overwrite those external changes with your current version.',
+        });
+        return result.response === 0 ? 'overwrite' : 'cancel';
     });
 
     // Dialog: Open file

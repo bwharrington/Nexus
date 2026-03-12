@@ -15,6 +15,7 @@ import {
     CopyIcon,
     ClipboardCopyIcon,
     SaveAsIcon,
+    RefreshIcon,
 } from './AppIcons';
 import { useEditorState, useEditorDispatch } from '../contexts';
 import { useFileOperations } from '../hooks';
@@ -65,6 +66,23 @@ const FileTab = React.memo(function FileTab({ file, isActive }: FileTabProps) {
     const { closeFile } = useFileOperations();
     const isDiffTab = file.viewMode === 'diff';
 
+    const handleRefreshFromExternal = useCallback(async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!file.pendingExternalPath) return;
+        const filePath = file.pendingExternalPath;
+        const fileData = await window.electronAPI.readFile(filePath);
+        if (fileData) {
+            dispatch({
+                type: 'UPDATE_FILE_CONTENT',
+                payload: { id: file.id, content: fileData.content, lineEnding: fileData.lineEnding },
+            });
+            dispatch({
+                type: 'SHOW_NOTIFICATION',
+                payload: { message: `"${file.name}" refreshed from disk.`, severity: 'info' },
+            });
+        }
+    }, [file.id, file.name, file.pendingExternalPath, dispatch]);
+
     const handleToggleViewMode = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
         dispatch({ type: 'TOGGLE_VIEW_MODE', payload: { id: file.id } });
@@ -106,6 +124,23 @@ const FileTab = React.memo(function FileTab({ file, isActive }: FileTabProps) {
                     />
                 </Tooltip>
             ) : null}
+            {!isDiffTab && file.pendingExternalPath && (
+                <Tooltip title="Refresh from external changes">
+                    <IconButton
+                        component="span"
+                        size="small"
+                        onClick={handleRefreshFromExternal}
+                        sx={{ padding: 0.25 }}
+                    >
+                        <RefreshIcon
+                            size={16}
+                            sx={{
+                                color: 'info.main',
+                            }}
+                        />
+                    </IconButton>
+                </Tooltip>
+            )}
             <FileName>{file.name}</FileName>
             {!isDiffTab && (
                 <Tooltip title={file.viewMode === 'edit' ? 'Switch to preview (Ctrl+E)' : 'Switch to edit (Ctrl+E)'}>

@@ -47,8 +47,9 @@ export function useSettingsConfig() {
 
         const newConfig = { ...config, ...updates };
         setConfig(newConfig);
+        dispatch({ type: 'SET_CONFIG', payload: newConfig });
         saveConfigDebounced(newConfig);
-    }, [config, saveConfigDebounced]);
+    }, [config, dispatch, saveConfigDebounced]);
 
     // Cleanup timeout on unmount
     useEffect(() => {
