@@ -101,27 +101,6 @@ const LoadingCursor = styled('span')(({ theme }) => ({
     animation: 'blink 1s step-end infinite',
 }));
 
-const SectionWrapper = styled(Box)({
-    position: 'relative',
-    '&:hover .section-copy-btn': {
-        opacity: 1,
-    },
-});
-
-const SectionCopyButton = styled(IconButton)(({ theme }) => ({
-    position: 'absolute',
-    top: 0,
-    right: -28,
-    opacity: 0,
-    transition: 'opacity 0.15s',
-    padding: 3,
-    color: theme.palette.text.secondary,
-    '&:hover': {
-        color: theme.palette.text.primary,
-        backgroundColor: theme.palette.action.hover,
-    },
-}));
-
 const ResponseCopyRow = styled(Box)(({ theme }) => ({
     display: 'flex',
     justifyContent: 'flex-end',
@@ -141,47 +120,6 @@ const ResponseCopyButton = styled(IconButton)(({ theme }) => ({
         backgroundColor: theme.palette.action.hover,
     },
 }));
-
-function extractText(children: React.ReactNode): string {
-    if (typeof children === 'string') return children;
-    if (typeof children === 'number') return String(children);
-    if (!children) return '';
-    if (Array.isArray(children)) return children.map(extractText).join('');
-    if (React.isValidElement(children)) {
-        const el = children as React.ReactElement<{ children?: React.ReactNode }>;
-        return extractText(el.props.children);
-    }
-    return '';
-}
-
-function CopyableSection({ children }: { children: React.ReactNode }) {
-    const [copied, setCopied] = useState(false);
-
-    const handleCopy = useCallback(() => {
-        const text = extractText(children);
-        navigator.clipboard.writeText(text).then(() => {
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1500);
-        });
-    }, [children]);
-
-    return (
-        <SectionWrapper>
-            {children}
-            <SectionCopyButton
-                className="section-copy-btn"
-                size="small"
-                onClick={handleCopy}
-                aria-label="Copy section"
-            >
-                {copied
-                    ? <CheckIcon size={14} />
-                    : <CopyIcon size={14} />
-                }
-            </SectionCopyButton>
-        </SectionWrapper>
-    );
-}
 
 function ResponseCopyButton_({ content }: { content: string }) {
     const [copied, setCopied] = useState(false);
@@ -232,11 +170,7 @@ const chatMarkdownComponents: Components = {
 
         if (language && isBlock) {
             const code = String(children).replace(/\n$/, '');
-            return (
-                <CopyableSection>
-                    <CodeBlock language={language}>{code}</CodeBlock>
-                </CopyableSection>
-            );
+            return <CodeBlock language={language}>{code}</CodeBlock>;
         }
 
         return (
@@ -244,36 +178,6 @@ const chatMarkdownComponents: Components = {
                 {children}
             </code>
         );
-    },
-    p({ children }) {
-        return <CopyableSection><p>{children}</p></CopyableSection>;
-    },
-    h1({ children }) {
-        return <CopyableSection><h1>{children}</h1></CopyableSection>;
-    },
-    h2({ children }) {
-        return <CopyableSection><h2>{children}</h2></CopyableSection>;
-    },
-    h3({ children }) {
-        return <CopyableSection><h3>{children}</h3></CopyableSection>;
-    },
-    h4({ children }) {
-        return <CopyableSection><h4>{children}</h4></CopyableSection>;
-    },
-    h5({ children }) {
-        return <CopyableSection><h5>{children}</h5></CopyableSection>;
-    },
-    h6({ children }) {
-        return <CopyableSection><h6>{children}</h6></CopyableSection>;
-    },
-    blockquote({ children }) {
-        return <CopyableSection><blockquote>{children}</blockquote></CopyableSection>;
-    },
-    ul({ children }) {
-        return <CopyableSection><ul>{children}</ul></CopyableSection>;
-    },
-    ol({ children }) {
-        return <CopyableSection><ol>{children}</ol></CopyableSection>;
     },
 };
 

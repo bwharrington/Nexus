@@ -207,7 +207,9 @@ function AppContent() {
 
         setAttachedFiles(prev => {
             const currentContextDoc = prev.find(f => f.isContextDoc);
-            const manualFiles = prev.filter(f => !f.isContextDoc);
+            // Remove manual chips for files that are no longer open
+            const openPaths = new Set(state.openFiles.map(f => f.path).filter(Boolean));
+            const manualFiles = prev.filter(f => !f.isContextDoc && openPaths.has(f.path));
 
             if (!isValidContextFile) {
                 if (!currentContextDoc) return prev;
