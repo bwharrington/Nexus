@@ -55,9 +55,8 @@ const DialogContainer = styled(Box)(({ theme }) => ({
     border: `1px solid ${theme.palette.divider}`,
     borderRadius: 4,
     boxShadow: theme.shadows[8],
-    minWidth: 500,
-    maxWidth: 600,
-    maxHeight: '80vh',
+    width: 600,
+    height: 900,
     overflow: 'hidden',
     display: 'flex',
     flexDirection: 'column',
@@ -79,6 +78,7 @@ const DragHandle = styled(Box)(({ theme }) => ({
 const DialogContent = styled(Box)({
     flex: 1,
     overflowY: 'auto',
+    overflowX: 'hidden',
     padding: 16,
 });
 
