@@ -26,6 +26,8 @@ import {
     Backdrop,
     TextField,
     Button,
+    Tabs,
+    Tab,
     styled,
 } from '@mui/material';
 import {
@@ -342,6 +344,9 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
         invalidateModelsForProvider,
     } = useAIProviderCacheContext();
 
+    // Active settings tab (0=Basic, 1=AI, 2=Web Search, 3=Files)
+    const [activeTab, setActiveTab] = useState(0);
+
     // Accordion expansion state for AI provider sections
     const [expandedSections, setExpandedSections] = useState<{
         xai: boolean;
@@ -394,10 +399,11 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
         await cacheRefreshStatuses();
     }, [cacheRefreshStatuses]);
 
-    // Load API key status when dialog opens
+    // Load API key status when dialog opens; reset to Basic tab
     useEffect(() => {
         if (open) {
             window.electronAPI.getApiKeyStatus().then(setApiKeyStatus);
+            setActiveTab(0);
         }
     }, [open]);
 
@@ -595,181 +601,202 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
             </DragHandle>
 
             <DialogContent>
-                {/* Basic Settings Section */}
-                <SectionHeader>Basic Settings</SectionHeader>
+                <Tabs
+                    value={activeTab}
+                    onChange={(_, newValue) => setActiveTab(newValue)}
+                    sx={{ minHeight: 36, mb: 2, borderBottom: 1, borderColor: 'divider' }}
+                >
+                    <Tab label="Basic" sx={{ minHeight: 36, textTransform: 'none', fontSize: 13 }} />
+                    <Tab label="AI" sx={{ minHeight: 36, textTransform: 'none', fontSize: 13 }} />
+                    <Tab label="Web Search" sx={{ minHeight: 36, textTransform: 'none', fontSize: 13 }} />
+                    <Tab label="Files" sx={{ minHeight: 36, textTransform: 'none', fontSize: 13 }} />
+                </Tabs>
 
-                {/* Line Ending Select */}
-                <FormControl size="small" fullWidth sx={{ mb: 2 }}>
-                    <InputLabel>Default Line Ending</InputLabel>
-                    <Select
-                        value={config?.defaultLineEnding || 'CRLF'}
-                        label="Default Line Ending"
-                        onChange={(e) => handleLineEndingChange(e.target.value as 'CRLF' | 'LF')}
-                    >
-                        <MenuItem value="CRLF">CRLF (Windows)</MenuItem>
-                        <MenuItem value="LF">LF (Unix/Mac)</MenuItem>
-                    </Select>
-                    <FormHelperText>Line ending format for new files</FormHelperText>
-                </FormControl>
-
-                {/* Silent File Updates Toggle */}
-                <FormControl size="small" fullWidth sx={{ mb: 2 }}>
-                    <FormControlLabel
-                        control={
-                            <Switch
-                                checked={config?.silentFileUpdates !== false}
-                                onChange={(e) => handleSilentFileUpdatesToggle(e.target.checked)}
-                                size="small"
-                            />
-                        }
-                        label="Silent File Updates"
-                    />
-                    <FormHelperText>
-                        When enabled, externally modified files are reloaded automatically in place. When disabled, you will be prompted before refreshing.
-                    </FormHelperText>
-                </FormControl>
-
-                {/* API Keys Section */}
-                <SectionHeader>AI API Keys</SectionHeader>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontSize: 12 }}>
-                    API keys are stored securely using your system's credential storage.
-                </Typography>
-
-                <APIKeyInput
-                    provider="xai"
-                    label="xAI (Grok)"
-                    hasKey={apiKeyStatus.xai}
-                    value={apiKeyInputs.xai}
-                    providerStatus={providerStatuses.xai.status}
-                    isTesting={testingProvider === 'xai'}
-                    onChange={(value) => setApiKeyInputs(prev => ({ ...prev, xai: value }))}
-                    onSet={() => handleSetApiKey('xai')}
-                    onClear={() => handleClearApiKey('xai')}
-                    onTest={() => handleTestProvider('xai')}
-                />
-
-                <APIKeyInput
-                    provider="claude"
-                    label="Anthropic Claude"
-                    hasKey={apiKeyStatus.claude}
-                    value={apiKeyInputs.claude}
-                    providerStatus={providerStatuses.claude.status}
-                    isTesting={testingProvider === 'claude'}
-                    onChange={(value) => setApiKeyInputs(prev => ({ ...prev, claude: value }))}
-                    onSet={() => handleSetApiKey('claude')}
-                    onClear={() => handleClearApiKey('claude')}
-                    onTest={() => handleTestProvider('claude')}
-                />
-
-                <APIKeyInput
-                    provider="openai"
-                    label="OpenAI"
-                    hasKey={apiKeyStatus.openai}
-                    value={apiKeyInputs.openai}
-                    providerStatus={providerStatuses.openai.status}
-                    isTesting={testingProvider === 'openai'}
-                    onChange={(value) => setApiKeyInputs(prev => ({ ...prev, openai: value }))}
-                    onSet={() => handleSetApiKey('openai')}
-                    onClear={() => handleClearApiKey('openai')}
-                    onTest={() => handleTestProvider('openai')}
-                />
-
-                <APIKeyInput
-                    provider="gemini"
-                    label="Google Gemini"
-                    hasKey={apiKeyStatus.gemini}
-                    value={apiKeyInputs.gemini}
-                    providerStatus={providerStatuses.gemini.status}
-                    isTesting={testingProvider === 'gemini'}
-                    onChange={(value) => setApiKeyInputs(prev => ({ ...prev, gemini: value }))}
-                    onSet={() => handleSetApiKey('gemini')}
-                    onClear={() => handleClearApiKey('gemini')}
-                    onTest={() => handleTestProvider('gemini')}
-                />
-
-                <SectionHeader>Web Search</SectionHeader>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontSize: 12 }}>
-                    Used by Plan and Tech Research modes to fetch real-world context during planning and research. Get a free key at <strong>serper.dev</strong>.
-                </Typography>
-
-                <APIKeyInput
-                    provider="serper"
-                    label="Serper (Web Search)"
-                    hasKey={apiKeyStatus.serper}
-                    value={apiKeyInputs.serper}
-                    providerStatus={apiKeyStatus.serper ? 'success' : 'unchecked'}
-                    isTesting={testingProvider === 'serper'}
-                    onChange={(value) => setApiKeyInputs(prev => ({ ...prev, serper: value }))}
-                    onSet={() => handleSetApiKey('serper')}
-                    onClear={() => handleClearApiKey('serper')}
-                    onTest={() => handleTestProvider('serper')}
-                />
-
-                {(providerStatuses.xai.enabled || providerStatuses.claude.enabled || providerStatuses.openai.enabled || providerStatuses.gemini.enabled) && (
+                {/* Tab 0: Basic */}
+                {activeTab === 0 && (
                     <>
-                        <SectionHeader>AI Models</SectionHeader>
+                        <FormControl size="small" fullWidth sx={{ mb: 2 }}>
+                            <InputLabel>Default Line Ending</InputLabel>
+                            <Select
+                                value={config?.defaultLineEnding || 'CRLF'}
+                                label="Default Line Ending"
+                                onChange={(e) => handleLineEndingChange(e.target.value as 'CRLF' | 'LF')}
+                            >
+                                <MenuItem value="CRLF">CRLF (Windows)</MenuItem>
+                                <MenuItem value="LF">LF (Unix/Mac)</MenuItem>
+                            </Select>
+                            <FormHelperText>Line ending format for new files</FormHelperText>
+                        </FormControl>
 
-                        {providerStatuses.xai.enabled && (
-                            <AIProviderSection
-                                title="xAI (Grok)"
-                                provider="xai"
-                                config={config}
-                                onModelToggle={handleModelToggle}
-                                expanded={expandedSections.xai}
-                                onToggle={() => handleSectionToggle('xai')}
+                        <FormControl size="small" fullWidth sx={{ mb: 2 }}>
+                            <FormControlLabel
+                                control={
+                                    <Switch
+                                        checked={config?.silentFileUpdates !== false}
+                                        onChange={(e) => handleSilentFileUpdatesToggle(e.target.checked)}
+                                        size="small"
+                                    />
+                                }
+                                label="Silent File Updates"
                             />
-                        )}
+                            <FormHelperText>
+                                When enabled, externally modified files are reloaded automatically in place. When disabled, you will be prompted before refreshing.
+                            </FormHelperText>
+                        </FormControl>
+                    </>
+                )}
 
-                        {providerStatuses.claude.enabled && (
-                            <AIProviderSection
-                                title="Anthropic Claude"
-                                provider="claude"
-                                config={config}
-                                onModelToggle={handleModelToggle}
-                                expanded={expandedSections.claude}
-                                onToggle={() => handleSectionToggle('claude')}
-                            />
-                        )}
+                {/* Tab 1: AI */}
+                {activeTab === 1 && (
+                    <>
+                        <SectionHeader>AI API Keys</SectionHeader>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontSize: 12 }}>
+                            API keys are stored securely using your system's credential storage.
+                        </Typography>
 
-                        {providerStatuses.openai.enabled && (
-                            <AIProviderSection
-                                title="OpenAI"
-                                provider="openai"
-                                config={config}
-                                onModelToggle={handleModelToggle}
-                                expanded={expandedSections.openai}
-                                onToggle={() => handleSectionToggle('openai')}
-                            />
-                        )}
+                        <APIKeyInput
+                            provider="xai"
+                            label="xAI (Grok)"
+                            hasKey={apiKeyStatus.xai}
+                            value={apiKeyInputs.xai}
+                            providerStatus={providerStatuses.xai.status}
+                            isTesting={testingProvider === 'xai'}
+                            onChange={(value) => setApiKeyInputs(prev => ({ ...prev, xai: value }))}
+                            onSet={() => handleSetApiKey('xai')}
+                            onClear={() => handleClearApiKey('xai')}
+                            onTest={() => handleTestProvider('xai')}
+                        />
 
-                        {providerStatuses.gemini.enabled && (
-                            <AIProviderSection
-                                title="Google Gemini"
-                                provider="gemini"
-                                config={config}
-                                onModelToggle={handleModelToggle}
-                                expanded={expandedSections.gemini}
-                                onToggle={() => handleSectionToggle('gemini')}
-                            />
+                        <APIKeyInput
+                            provider="claude"
+                            label="Anthropic Claude"
+                            hasKey={apiKeyStatus.claude}
+                            value={apiKeyInputs.claude}
+                            providerStatus={providerStatuses.claude.status}
+                            isTesting={testingProvider === 'claude'}
+                            onChange={(value) => setApiKeyInputs(prev => ({ ...prev, claude: value }))}
+                            onSet={() => handleSetApiKey('claude')}
+                            onClear={() => handleClearApiKey('claude')}
+                            onTest={() => handleTestProvider('claude')}
+                        />
+
+                        <APIKeyInput
+                            provider="openai"
+                            label="OpenAI"
+                            hasKey={apiKeyStatus.openai}
+                            value={apiKeyInputs.openai}
+                            providerStatus={providerStatuses.openai.status}
+                            isTesting={testingProvider === 'openai'}
+                            onChange={(value) => setApiKeyInputs(prev => ({ ...prev, openai: value }))}
+                            onSet={() => handleSetApiKey('openai')}
+                            onClear={() => handleClearApiKey('openai')}
+                            onTest={() => handleTestProvider('openai')}
+                        />
+
+                        <APIKeyInput
+                            provider="gemini"
+                            label="Google Gemini"
+                            hasKey={apiKeyStatus.gemini}
+                            value={apiKeyInputs.gemini}
+                            providerStatus={providerStatuses.gemini.status}
+                            isTesting={testingProvider === 'gemini'}
+                            onChange={(value) => setApiKeyInputs(prev => ({ ...prev, gemini: value }))}
+                            onSet={() => handleSetApiKey('gemini')}
+                            onClear={() => handleClearApiKey('gemini')}
+                            onTest={() => handleTestProvider('gemini')}
+                        />
+
+                        {(providerStatuses.xai.enabled || providerStatuses.claude.enabled || providerStatuses.openai.enabled || providerStatuses.gemini.enabled) && (
+                            <>
+                                <SectionHeader>AI Models</SectionHeader>
+
+                                {providerStatuses.xai.enabled && (
+                                    <AIProviderSection
+                                        title="xAI (Grok)"
+                                        provider="xai"
+                                        config={config}
+                                        onModelToggle={handleModelToggle}
+                                        expanded={expandedSections.xai}
+                                        onToggle={() => handleSectionToggle('xai')}
+                                    />
+                                )}
+
+                                {providerStatuses.claude.enabled && (
+                                    <AIProviderSection
+                                        title="Anthropic Claude"
+                                        provider="claude"
+                                        config={config}
+                                        onModelToggle={handleModelToggle}
+                                        expanded={expandedSections.claude}
+                                        onToggle={() => handleSectionToggle('claude')}
+                                    />
+                                )}
+
+                                {providerStatuses.openai.enabled && (
+                                    <AIProviderSection
+                                        title="OpenAI"
+                                        provider="openai"
+                                        config={config}
+                                        onModelToggle={handleModelToggle}
+                                        expanded={expandedSections.openai}
+                                        onToggle={() => handleSectionToggle('openai')}
+                                    />
+                                )}
+
+                                {providerStatuses.gemini.enabled && (
+                                    <AIProviderSection
+                                        title="Google Gemini"
+                                        provider="gemini"
+                                        config={config}
+                                        onModelToggle={handleModelToggle}
+                                        expanded={expandedSections.gemini}
+                                        onToggle={() => handleSectionToggle('gemini')}
+                                    />
+                                )}
+                            </>
                         )}
                     </>
                 )}
 
-                {/* Open Directories Table (Readonly) */}
-                <SectionHeader>Open Directories</SectionHeader>
-                <DirectoriesTable directories={config?.openDirectories || []} />
+                {/* Tab 2: Web Search */}
+                {activeTab === 2 && (
+                    <>
+                        <SectionHeader>Web Search</SectionHeader>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontSize: 12 }}>
+                            Used by Plan and Tech Research modes to fetch real-world context during planning and research. Get a free key at <strong>serper.dev</strong>.
+                        </Typography>
 
-                {/* Recent Directories Table (Readonly) */}
-                <SectionHeader>Recent Directories</SectionHeader>
-                <DirectoriesTable directories={config?.recentDirectories || []} />
+                        <APIKeyInput
+                            provider="serper"
+                            label="Serper (Web Search)"
+                            hasKey={apiKeyStatus.serper}
+                            value={apiKeyInputs.serper}
+                            providerStatus={apiKeyStatus.serper ? 'success' : 'unchecked'}
+                            isTesting={testingProvider === 'serper'}
+                            onChange={(value) => setApiKeyInputs(prev => ({ ...prev, serper: value }))}
+                            onSet={() => handleSetApiKey('serper')}
+                            onClear={() => handleClearApiKey('serper')}
+                            onTest={() => handleTestProvider('serper')}
+                        />
+                    </>
+                )}
 
-                {/* Recent Files Table (Readonly) */}
-                <SectionHeader>Recent Files</SectionHeader>
-                <FilesTable files={config?.recentFiles || []} />
+                {/* Tab 3: Files */}
+                {activeTab === 3 && (
+                    <>
+                        <SectionHeader>Open Directories</SectionHeader>
+                        <DirectoriesTable directories={config?.openDirectories || []} />
 
-                {/* Open Files Table (Readonly) */}
-                <SectionHeader>Open Files</SectionHeader>
-                <FilesTable files={config?.openFiles || []} />
+                        <SectionHeader>Recent Directories</SectionHeader>
+                        <DirectoriesTable directories={config?.recentDirectories || []} />
+
+                        <SectionHeader>Recent Files</SectionHeader>
+                        <FilesTable files={config?.recentFiles || []} />
+
+                        <SectionHeader>Open Files</SectionHeader>
+                        <FilesTable files={config?.openFiles || []} />
+                    </>
+                )}
             </DialogContent>
         </DialogContainer>
         </Modal>

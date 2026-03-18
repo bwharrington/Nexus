@@ -12,6 +12,7 @@ Markdown Nexus is a modern, feature-rich Markdown editor built with Electron, Re
 1. [Overview](#overview)
 2. [Installation](#installation)
 3. [Features](#features)
+   - [File Directory Panel](#file-directory-panel)
    - [Dual View Modes](#dual-view-modes)
    - [Multi-Tab Editing](#multi-tab-editing)
    - [File Operations](#file-operations)
@@ -44,6 +45,7 @@ Markdown Nexus is a modern, feature-rich Markdown editor built with Electron, Re
 
 Markdown Nexus is a desktop Markdown editor designed for writers, developers, and anyone who works with Markdown documents. It features:
 
+- **File Directory Panel** - Collapsible sidebar for browsing and managing multiple project folders simultaneously
 - **Dual viewing modes** - Switch between raw Markdown editing and rendered preview
 - **Multi-tab interface** - Work on multiple documents simultaneously
 - **GitHub Flavored Markdown** - Full GFM support including tables, task lists, and strikethrough
@@ -82,6 +84,24 @@ Double-clicking any of these file types will open them in Markdown Nexus.
 ---
 
 ## Features
+
+### File Directory Panel
+
+The File Directory Panel is a collapsible, resizable left-hand sidebar for browsing and managing one or more project folders directly within the editor.
+
+- **Multiple open directories** - Open any number of folders simultaneously, each with its own tree view and toolbar
+- **Full directory tree** - Displays all supported Markdown, RST, and text files recursively, with folders shown before files
+- **Double-click to open** - Single-click selects a file; double-click opens it as a new editor tab
+- **Per-directory toolbar** - Each directory has its own toolbar with buttons for creating files/folders, sorting, expand/collapse all, and closing
+- **File and folder operations** - Create, rename, delete, and move files and folders without leaving the editor
+- **Drag-and-drop** - Reorganize files within a directory by dragging them to new folders
+- **Right-click context menu** - Rename, delete, reveal in Explorer, copy path/name, and toggle Nexus AI attachment per file or folder
+- **Sort order** - Sort files A-to-Z or Z-to-A per directory; sort preference is remembered across sessions
+- **Nexus AI integration** - Attach any file in the tree to the Nexus AI chat context without opening it in the editor
+- **Auto-restore** - Previously opened directories are automatically re-opened on application startup
+- **Recent directories** - Recently opened directories appear on the landing page and in Settings for quick re-access
+
+> For full details, see [File-Directory-Feature.md](File-Directory-Feature.md).
 
 ### Dual View Modes
 
@@ -413,6 +433,8 @@ Securely manage API keys for AI providers:
 
 ##### Reference Information
 
+- **Open Directories** - Table showing directories currently open in the File Directory Panel
+- **Recent Directories** - Table showing previously opened directories
 - **Recent Files** - Table showing recently opened files and their view modes
 - **Open Files** - Table showing currently open files and their view modes
 
@@ -946,6 +968,11 @@ src/
 │   │   ├── RstToolbar.tsx      # RST formatting toolbar
 │   │   ├── RstRenderer.tsx     # reStructuredText parser/renderer
 │   │   ├── MermaidDiagram.tsx  # Mermaid diagram renderer
+│   │   ├── FileDirectoryContainer.tsx # Scrollable container for all open directories
+│   │   ├── FileDirectory.tsx   # Single directory section (toolbar + tree)
+│   │   ├── FileDirectoryToolbar.tsx   # Per-directory toolbar with actions
+│   │   ├── FileTreeNode.tsx    # Recursive file/folder tree row
+│   │   ├── FileTreeContextMenu.tsx    # Right-click context menu for tree items
 │   │   ├── AIChatDialog.tsx    # AI chat dialog (orchestrator)
 │   │   ├── ChatMessages.tsx    # Chat message bubbles and rendering
 │   │   ├── ProviderSelector.tsx # Provider/model dropdowns
@@ -968,6 +995,7 @@ src/
 │   │
 │   ├── hooks/             # Custom React hooks
 │   │   ├── useFileOperations.ts
+│   │   ├── useFileDirectories.ts  # Multi-directory panel state management
 │   │   ├── useWindowTitle.ts
 │   │   ├── useExternalFileWatcher.ts  # External file change handling
 │   │   ├── useAIChat.ts        # AI chat state management
@@ -1005,8 +1033,9 @@ src/
 
 The application uses React Context with a reducer pattern for state management:
 
-- **EditorContext** - Manages open files, active tab, undo/redo stacks
+- **EditorContext** - Manages open files, active tab, undo/redo stacks, and application config
 - **ThemeContext** - Manages light/dark theme preference
+- **useFileDirectories** - Local hook state (outside EditorContext) managing the map of open directory instances and their per-directory trees, expanded paths, sort orders, and rename states
 
 ### IPC Communication
 
@@ -1017,6 +1046,14 @@ The main and renderer processes communicate through a secure IPC bridge:
 window.electronAPI.openFile()
 window.electronAPI.saveFile(path, content)
 window.electronAPI.loadConfig()
+
+// File Directory Operations
+window.electronAPI.readDirectory(dirPath)
+window.electronAPI.createFile(parentPath, name)
+window.electronAPI.createFolder(dirPath)
+window.electronAPI.deleteItem(itemPath)
+window.electronAPI.renameFile(oldPath, newPath)
+window.electronAPI.revealInExplorer(itemPath)
 
 // AI Operations
 window.electronAPI.aiChatRequest(messages, model, provider)
