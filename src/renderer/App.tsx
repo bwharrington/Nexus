@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useCallback, useRef, Component } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo, Component } from 'react';
 import { CssBaseline, Box, Button, styled, Typography } from '@mui/material';
 import { EditorProvider, useEditorState, useEditorDispatch, ThemeProvider, AIProviderCacheProvider } from './contexts';
-import { Toolbar, TabBar, EditorPane, EmptyState, NotificationSnackbar, AIChatDialog, SettingsDialog } from './components';
-import { useWindowTitle, useFileOperations, useExternalFileWatcher, getFileType } from './hooks';
+import { Toolbar, TabBar, EditorPane, EmptyState, NotificationSnackbar, AIChatDialog, SettingsDialog, FileDirectory } from './components';
+import { useWindowTitle, useFileOperations, useExternalFileWatcher, getFileType, useFileDirectory } from './hooks';
 import { SplitDivider } from './styles/editor.styles';
 import type { AttachedFile } from './components/FileAttachmentsList';
 import type { IFile } from './types';
@@ -139,15 +139,34 @@ const DockedAIPanel = styled(Box)({
     minWidth: 320,
 });
 
+const FileDirectoryPanel = styled(Box)({
+    display: 'flex',
+    flexDirection: 'column',
+    flexShrink: 0,
+    overflow: 'hidden',
+    minWidth: 180,
+});
+
 // Inner app component that uses context
 function AppContent() {
     const DEFAULT_AI_DOCK_WIDTH = 420;
     const MIN_AI_DOCK_WIDTH = 320;
     const MIN_EDITOR_WIDTH = 320;
+    const DEFAULT_FILE_DIR_WIDTH = 260;
+    const MIN_FILE_DIR_WIDTH = 180;
+    const MAX_FILE_DIR_WIDTH = 500;
 
     const state = useEditorState();
     const dispatch = useEditorDispatch();
     const { saveFile, saveFileAs, saveAllFiles, openFile, closeFile, closeAllFiles, showInFolder, createNewFile } = useFileOperations();
+    const fileDirectory = useFileDirectory();
+
+    // File directory panel state
+    const [fileDirOpen, setFileDirOpen] = useState(state.config.fileDirectoryOpen ?? false);
+    const [fileDirWidth, setFileDirWidth] = useState(state.config.fileDirectoryWidth ?? DEFAULT_FILE_DIR_WIDTH);
+    const [isResizingFileDir, setIsResizingFileDir] = useState(false);
+    const fileDirResizeStartRef = useRef({ x: 0, width: DEFAULT_FILE_DIR_WIDTH });
+    const fileDirWidthRef = useRef(DEFAULT_FILE_DIR_WIDTH);
 
     // AI Chat dialog state
     const [aiChatOpen, setAiChatOpen] = useState(false);
@@ -157,16 +176,73 @@ function AppContent() {
     const aiDockResizeStartRef = useRef({ x: 0, width: DEFAULT_AI_DOCK_WIDTH });
     const aiDockWidthRef = useRef(DEFAULT_AI_DOCK_WIDTH);
 
+    const appConfigRef = useRef(state.config);
+    appConfigRef.current = state.config;
+
     const persistAiChatLayout = useCallback((updates: { aiChatDockWidth?: number }) => {
-        const nextConfig = {
-            ...state.config,
-            ...updates,
-        };
+        const nextConfig = { ...appConfigRef.current, ...updates };
         dispatch({ type: 'SET_CONFIG', payload: nextConfig });
         void window.electronAPI.saveConfig(nextConfig).catch((error) => {
             console.error('Failed to save AI panel layout config:', error);
         });
-    }, [dispatch, state.config]);
+    }, [dispatch]);
+
+    // File directory panel persistence and resize
+    const persistFileDirLayout = useCallback((updates: { fileDirectoryOpen?: boolean; fileDirectoryWidth?: number }) => {
+        const nextConfig = { ...appConfigRef.current, ...updates };
+        dispatch({ type: 'SET_CONFIG', payload: nextConfig });
+        void window.electronAPI.saveConfig(nextConfig).catch((error) => {
+            console.error('Failed to save file directory layout config:', error);
+        });
+    }, [dispatch]);
+
+    const handleToggleFileDirectory = useCallback(() => {
+        const next = !fileDirOpen;
+        setFileDirOpen(next);
+        persistFileDirLayout({ fileDirectoryOpen: next });
+    }, [fileDirOpen, persistFileDirLayout]);
+
+    fileDirWidthRef.current = fileDirWidth;
+
+    useEffect(() => {
+        setFileDirWidth(Math.max(MIN_FILE_DIR_WIDTH, state.config.fileDirectoryWidth ?? DEFAULT_FILE_DIR_WIDTH));
+    }, [state.config.fileDirectoryWidth]);
+
+    useEffect(() => {
+        if (state.config.fileDirectoryOpen !== undefined) {
+            setFileDirOpen(state.config.fileDirectoryOpen);
+        }
+    }, [state.config.fileDirectoryOpen]);
+
+    const handleFileDirResizeStart = useCallback((e: React.MouseEvent) => {
+        if (!fileDirOpen) return;
+        fileDirResizeStartRef.current = { x: e.clientX, width: fileDirWidth };
+        setIsResizingFileDir(true);
+        e.preventDefault();
+    }, [fileDirOpen, fileDirWidth]);
+
+    useEffect(() => {
+        if (!isResizingFileDir) return;
+
+        const handleMouseMove = (e: MouseEvent) => {
+            const deltaX = e.clientX - fileDirResizeStartRef.current.x;
+            const proposedWidth = fileDirResizeStartRef.current.width + deltaX;
+            const clampedWidth = Math.max(MIN_FILE_DIR_WIDTH, Math.min(proposedWidth, MAX_FILE_DIR_WIDTH));
+            setFileDirWidth(clampedWidth);
+        };
+
+        const handleMouseUp = () => {
+            setIsResizingFileDir(false);
+            persistFileDirLayout({ fileDirectoryWidth: fileDirWidthRef.current });
+        };
+
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isResizingFileDir, persistFileDirLayout]);
 
     const handleOpenAIChat = useCallback(() => {
         setAiChatOpen(true);
@@ -287,6 +363,36 @@ function AppContent() {
                 ? { ...f, enabled: !f.enabled }
                 : f
         ));
+    }, []);
+
+    const attachedFilePaths = useMemo(
+        () => new Set(attachedFiles.map(f => f.path)),
+        [attachedFiles],
+    );
+
+    const handleToggleNexusAttachmentFromTree = useCallback((filePath: string, fileName: string) => {
+        setAttachedFiles(prev => {
+            const existing = prev.find(f => f.path === filePath);
+            if (existing) {
+                if (existing.isContextDoc) {
+                    return prev.map(f =>
+                        f.path === filePath && f.isContextDoc
+                            ? { ...f, enabled: !f.enabled }
+                            : f
+                    );
+                }
+                return prev.filter(f => f.path !== filePath);
+            }
+            const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
+            const type = ['rst', 'rest'].includes(ext) ? 'rst' : ['txt'].includes(ext) ? 'text' : 'markdown';
+            const newAttachment: AttachedFile = {
+                name: fileName,
+                path: filePath,
+                type,
+                size: 0,
+            };
+            return [...prev, newAttachment];
+        });
     }, []);
 
     // Set up window title management
@@ -653,15 +759,29 @@ function AppContent() {
 
     return (
         <AppContainer>
-            <Toolbar />
+            <Toolbar
+                fileDirOpen={fileDirOpen}
+                onToggleFileDirectory={handleToggleFileDirectory}
+            />
             <TabBar
                 attachedFiles={attachedFiles}
                 onToggleFileAttachment={handleToggleFileAttachment}
                 onToggleContextDoc={handleToggleContextDoc}
             />
             <MainContent ref={mainContentRef}>
+                <FileDirectoryPanel sx={{ width: fileDirWidth, display: fileDirOpen ? undefined : 'none' }}>
+                    <FileDirectory
+                        directory={fileDirectory}
+                        attachedFilePaths={attachedFilePaths}
+                        onToggleNexusAttachment={handleToggleNexusAttachmentFromTree}
+                    />
+                </FileDirectoryPanel>
+                <SplitDivider
+                    onMouseDown={handleFileDirResizeStart}
+                    sx={{ flexShrink: 0, zIndex: 2, display: fileDirOpen ? undefined : 'none' }}
+                />
                 <EditorArea>
-                    {hasOpenFiles ? <EditorPane /> : <EmptyState />}
+                    {hasOpenFiles ? <EditorPane /> : <EmptyState onOpenRecentDirectory={fileDirectory.openRecentDirectory} />}
                 </EditorArea>
                 <SplitDivider
                     onMouseDown={handleAiDockResizeStart}

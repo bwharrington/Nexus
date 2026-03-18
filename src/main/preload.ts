@@ -17,7 +17,15 @@ const electronAPI = {
     ipcRenderer.invoke('file:save-dropped-image', sourcePath, documentDir),
   exportPdf: (html: string, defaultName?: string) =>
     ipcRenderer.invoke('file:export-pdf', html, defaultName),
-  
+
+  // Directory operations
+  openFolderDialog: () => ipcRenderer.invoke('dialog:open-folder'),
+  readDirectory: (dirPath: string) => ipcRenderer.invoke('file:read-directory', dirPath),
+  createFileOnDisk: (dirPath: string) => ipcRenderer.invoke('file:create-file', dirPath),
+  createFolder: (dirPath: string) => ipcRenderer.invoke('file:create-folder', dirPath),
+  moveItem: (sourcePath: string, destDir: string) => ipcRenderer.invoke('file:move', sourcePath, destDir),
+  deleteItem: (itemPath: string) => ipcRenderer.invoke('file:delete', itemPath),
+
   // Config operations
   loadConfig: () => ipcRenderer.invoke('config:load'),
   saveConfig: (config: unknown) => ipcRenderer.invoke('config:save', config),
@@ -107,6 +115,11 @@ const electronAPI = {
     ipcRenderer.on('open-files-from-args', (_event, filePaths: string[]) => callback(filePaths));
     return () => ipcRenderer.removeAllListeners('open-files-from-args');
   },
+  onBeforeClose: (callback: () => void) => {
+    ipcRenderer.on('app:before-close', callback);
+    return () => ipcRenderer.removeAllListeners('app:before-close');
+  },
+  signalCloseReady: () => ipcRenderer.send('app:close-ready'),
 
   // AI Chat operations
   aiChatRequest: (messages: Array<{ role: string; content: string }>, model: string, requestId?: string, maxTokens?: number) =>

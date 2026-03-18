@@ -289,6 +289,40 @@ function FilesTable({ files }: FilesTableProps) {
     );
 }
 
+// Sub-component: Directories Table
+interface DirectoriesTableProps {
+    directories: string[];
+}
+
+function DirectoriesTable({ directories }: DirectoriesTableProps) {
+    if (directories.length === 0) {
+        return (
+            <Box sx={{ p: 2, textAlign: 'center', color: 'text.secondary', fontSize: 14 }}>
+                No directories
+            </Box>
+        );
+    }
+
+    return (
+        <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+            <Table size="small">
+                <TableHead>
+                    <TableRow>
+                        <TableCell>Directory Path</TableCell>
+                    </TableRow>
+                </TableHead>
+                <TableBody>
+                    {directories.map((dir, index) => (
+                        <TableRow key={index}>
+                            <TableCell>{dir}</TableCell>
+                        </TableRow>
+                    ))}
+                </TableBody>
+            </Table>
+        </TableContainer>
+    );
+}
+
 // Main Component
 interface SettingsDialogProps {
     open: boolean;
@@ -720,6 +754,14 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                         )}
                     </>
                 )}
+
+                {/* Open Directories Table (Readonly) */}
+                <SectionHeader>Open Directories</SectionHeader>
+                <DirectoriesTable directories={config?.openDirectories || []} />
+
+                {/* Recent Directories Table (Readonly) */}
+                <SectionHeader>Recent Directories</SectionHeader>
+                <DirectoriesTable directories={config?.recentDirectories || []} />
 
                 {/* Recent Files Table (Readonly) */}
                 <SectionHeader>Recent Files</SectionHeader>

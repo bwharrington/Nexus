@@ -59,6 +59,12 @@ export interface IConfig {
   aiChatModel?: string;
   aiResearchDepthLevel?: string;
   aiTechResearchDepthLevel?: string;
+  fileDirectoryPath?: string;
+  fileDirectoryOpen?: boolean;
+  fileDirectoryWidth?: number;
+  fileDirectorySort?: FileDirectorySortOrder;
+  openDirectories?: string[];
+  recentDirectories?: string[];
 }
 
 export interface ConfirmCloseResult {
@@ -166,6 +172,15 @@ export interface PdfExportResult {
   error?: string;
 }
 
+export interface DirectoryNode {
+  name: string;
+  path: string;
+  isDirectory: boolean;
+  children?: DirectoryNode[];
+}
+
+export type FileDirectorySortOrder = 'asc' | 'desc';
+
 export interface ElectronAPI {
   // File operations
   newFile: () => Promise<void>;
@@ -180,7 +195,15 @@ export interface ElectronAPI {
   saveClipboardImage: (base64Data: string, documentDir: string) => Promise<ImageSaveResult>;
   saveDroppedImage: (sourcePath: string, documentDir: string) => Promise<ImageSaveResult>;
   exportPdf: (html: string, defaultName?: string) => Promise<PdfExportResult | null>;
-  
+
+  // Directory operations
+  openFolderDialog: () => Promise<string | null>;
+  readDirectory: (dirPath: string) => Promise<DirectoryNode | null>;
+  createFileOnDisk: (dirPath: string) => Promise<{ success: boolean; filePath?: string; name?: string; error?: string }>;
+  createFolder: (dirPath: string) => Promise<{ success: boolean; folderPath?: string; name?: string; error?: string }>;
+  moveItem: (sourcePath: string, destDir: string) => Promise<{ success: boolean; destPath?: string; error?: string }>;
+  deleteItem: (itemPath: string) => Promise<{ success: boolean; error?: string }>;
+
   // Config operations
   loadConfig: () => Promise<IConfig>;
   saveConfig: (config: IConfig) => Promise<void>;
@@ -232,6 +255,8 @@ export interface ElectronAPI {
   onExternalFileChange: (callback: (filePath: string) => void) => () => void;
   onExternalFileRename: (callback: (filePath: string) => void) => () => void;
   onOpenFilesFromArgs: (callback: (filePaths: string[]) => void) => () => void;
+  onBeforeClose: (callback: () => void) => () => void;
+  signalCloseReady: () => void;
 
   // AI Chat operations
   aiChatRequest: (messages: AIMessage[], model: string, requestId?: string, maxTokens?: number) => Promise<AIChatResponse>;

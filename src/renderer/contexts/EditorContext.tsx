@@ -657,24 +657,38 @@ export function EditorProvider({ children }: EditorProviderProps) {
         };
     }, []);
 
-    // Sync recent files with open files before closing
+    // Flush config to disk when the main process signals the window is about to close
+    const stateRef = React.useRef(state);
+    stateRef.current = state;
+
     useEffect(() => {
-        const handleBeforeUnload = async () => {
-            const openFileRefs = state.openFiles
+        const cleanup = window.electronAPI.onBeforeClose(async () => {
+            const current = stateRef.current;
+            const openFileRefs = current.openFiles
                 .filter(f => f.path !== null && !f.path.endsWith('config.json') && f.viewMode !== 'diff')
                 .map(f => ({ fileName: f.path!, mode: f.viewMode as 'edit' | 'preview' }));
 
-            if (openFileRefs.length > 0) {
-                await window.electronAPI.syncRecentFiles(openFileRefs);
+            const finalConfig = {
+                ...current.config,
+                openFiles: openFileRefs,
+                recentFiles: [
+                    ...openFileRefs,
+                    ...current.config.recentFiles.filter(
+                        ref => !openFileRefs.some(o => o.fileName === ref.fileName)
+                    ),
+                ].slice(0, 10),
+            };
+
+            try {
+                await window.electronAPI.saveConfig(finalConfig);
+            } catch {
+                // Best-effort; window is closing regardless
             }
-        };
+            window.electronAPI.signalCloseReady();
+        });
 
-        window.addEventListener('beforeunload', handleBeforeUnload);
-
-        return () => {
-            window.removeEventListener('beforeunload', handleBeforeUnload);
-        };
-    }, [state.openFiles]);
+        return cleanup;
+    }, []);
 
     // Watch/unwatch files when they're opened/closed
     // Use a ref to track which files we've already requested to watch

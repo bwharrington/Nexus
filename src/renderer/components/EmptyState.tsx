@@ -1,8 +1,12 @@
 import React from 'react';
-import { Box, Typography, Button, List, ListItem, ListItemButton, ListItemText, styled } from '@mui/material';
-import { NoteAddIcon, FolderOpenIcon, HistoryIcon } from './AppIcons';
+import { Box, Typography, Button, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Divider, styled } from '@mui/material';
+import { NoteAddIcon, FolderOpenIcon, HistoryIcon, FolderClosedIcon } from './AppIcons';
 import { useFileOperations } from '../hooks';
 import { useEditorState } from '../contexts';
+
+interface EmptyStateProps {
+    onOpenRecentDirectory?: (dirPath: string) => Promise<void>;
+}
 
 const Container = styled(Box)(({ theme }) => ({
     display: 'flex',
@@ -31,17 +35,23 @@ const ButtonGroup = styled(Box)(({ theme }) => ({
     marginBottom: theme.spacing(3),
 }));
 
-const RecentFilesSection = styled(Box)(({ theme }) => ({
+const RecentSection = styled(Box)(({ theme }) => ({
     marginTop: theme.spacing(3),
     width: '100%',
     textAlign: 'left',
 }));
 
-export function EmptyState() {
+export function EmptyState({ onOpenRecentDirectory }: EmptyStateProps) {
     const state = useEditorState();
     const { createNewFile, openFile, openRecentFile, openAllRecentFiles } = useFileOperations();
 
     const recentFiles = state.config.recentFiles.slice(0, 5);
+    const openDirs = (state.config.openDirectories ?? []).slice(0, 5);
+    const recentDirs = (state.config.recentDirectories ?? []).slice(0, 5);
+
+    const hasOpenDirs = openDirs.length > 0 && !!onOpenRecentDirectory;
+    const hasRecentDirs = recentDirs.length > 0 && !!onOpenRecentDirectory;
+    const hasRecentFiles = recentFiles.length > 0;
 
     return (
         <Container>
@@ -70,7 +80,7 @@ export function EmptyState() {
                     >
                         Open File
                     </Button>
-                    {recentFiles.length > 0 && (
+                    {hasRecentFiles && (
                         <Button
                             variant="outlined"
                             startIcon={<HistoryIcon />}
@@ -82,8 +92,66 @@ export function EmptyState() {
                     )}
                 </ButtonGroup>
 
-                {recentFiles.length > 0 && (
-                    <RecentFilesSection>
+                {hasOpenDirs && (
+                    <RecentSection>
+                        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                            Open Directories
+                        </Typography>
+                        <List dense>
+                            {openDirs.map((dirPath) => (
+                                <ListItem key={dirPath} disablePadding>
+                                    <ListItemButton onClick={() => onOpenRecentDirectory!(dirPath)}>
+                                        <ListItemIcon sx={{ minWidth: 32 }}>
+                                            <FolderOpenIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+                                        </ListItemIcon>
+                                        <ListItemText
+                                            primary={dirPath.split(/[\\/]/).pop()}
+                                            secondary={dirPath}
+                                            primaryTypographyProps={{ noWrap: true }}
+                                            secondaryTypographyProps={{ noWrap: true, fontSize: 12 }}
+                                        />
+                                    </ListItemButton>
+                                </ListItem>
+                            ))}
+                        </List>
+                    </RecentSection>
+                )}
+
+                {hasOpenDirs && (hasRecentDirs || hasRecentFiles) && (
+                    <Divider sx={{ my: 1 }} />
+                )}
+
+                {hasRecentDirs && (
+                    <RecentSection>
+                        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                            Recent Directories
+                        </Typography>
+                        <List dense>
+                            {recentDirs.map((dirPath) => (
+                                <ListItem key={dirPath} disablePadding>
+                                    <ListItemButton onClick={() => onOpenRecentDirectory!(dirPath)}>
+                                        <ListItemIcon sx={{ minWidth: 32 }}>
+                                            <FolderClosedIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+                                        </ListItemIcon>
+                                        <ListItemText
+                                            primary={dirPath.split(/[\\/]/).pop()}
+                                            secondary={dirPath}
+                                            primaryTypographyProps={{ noWrap: true }}
+                                            secondaryTypographyProps={{ noWrap: true, fontSize: 12 }}
+                                        />
+                                    </ListItemButton>
+                                </ListItem>
+                            ))}
+                        </List>
+                    </RecentSection>
+                )}
+
+                {hasRecentFiles && (hasRecentDirs || hasOpenDirs) && (
+                    <Divider sx={{ my: 1 }} />
+                )}
+
+                {hasRecentFiles && (
+                    <RecentSection>
                         <Typography variant="subtitle2" color="text.secondary" gutterBottom>
                             Recent Files
                         </Typography>
@@ -101,7 +169,7 @@ export function EmptyState() {
                                 </ListItem>
                             ))}
                         </List>
-                    </RecentFilesSection>
+                    </RecentSection>
                 )}
             </WelcomeCard>
         </Container>

@@ -23,6 +23,13 @@ let fileWatchers: Map<string, fsSync.FSWatcher> = new Map();
 // Supported markdown file extensions (for Windows file associations)
 const MARKDOWN_EXTENSIONS = ['.md', '.markdown', '.mdown', '.mkd', '.mkdn', '.mdx', '.mdwn', '.mdc'];
 
+// All extensions the file directory tree should display
+const DIRECTORY_SUPPORTED_EXTENSIONS = [
+    ...MARKDOWN_EXTENSIONS,
+    '.rst', '.rest',
+    '.txt',
+];
+
 // Check if a file path is a markdown file
 function isMarkdownFile(filePath: string): boolean {
     const lowerPath = filePath.toLowerCase();
@@ -759,6 +766,169 @@ function registerIpcHandlers() {
         }
     });
 
+    // Dialog: Open folder
+    ipcMain.handle('dialog:open-folder', async () => {
+        const result = await dialog.showOpenDialog(mainWindow!, {
+            properties: ['openDirectory'],
+        });
+        if (result.canceled || result.filePaths.length === 0) {
+            return null;
+        }
+        return result.filePaths[0];
+    });
+
+    // File: Read directory recursively (returns tree of supported files)
+    ipcMain.handle('file:read-directory', async (_event, dirPath: string) => {
+        log('IPC: file:read-directory called', { dirPath });
+
+        interface DirNode {
+            name: string;
+            path: string;
+            isDirectory: boolean;
+            children?: DirNode[];
+        }
+
+        async function readDirRecursive(currentPath: string): Promise<DirNode[]> {
+            let entries;
+            try {
+                entries = await fs.readdir(currentPath, { withFileTypes: true });
+            } catch {
+                return [];
+            }
+
+            const nodes: DirNode[] = [];
+
+            for (const entry of entries) {
+                if (entry.name.startsWith('.')) continue;
+
+                const fullPath = path.join(currentPath, entry.name);
+
+                if (entry.isDirectory()) {
+                    const children = await readDirRecursive(fullPath);
+                    nodes.push({
+                        name: entry.name,
+                        path: fullPath,
+                        isDirectory: true,
+                        children,
+                    });
+                } else {
+                    const ext = path.extname(entry.name).toLowerCase();
+                    if (DIRECTORY_SUPPORTED_EXTENSIONS.includes(ext)) {
+                        nodes.push({
+                            name: entry.name,
+                            path: fullPath,
+                            isDirectory: false,
+                        });
+                    }
+                }
+            }
+
+            return nodes;
+        }
+
+        try {
+            const children = await readDirRecursive(dirPath);
+            const rootNode: DirNode = {
+                name: path.basename(dirPath),
+                path: dirPath,
+                isDirectory: true,
+                children,
+            };
+            return rootNode;
+        } catch (error) {
+            logError('IPC: file:read-directory failed', error as Error);
+            return null;
+        }
+    });
+
+    // File: Create new file on disk
+    ipcMain.handle('file:create-file', async (_event, dirPath: string) => {
+        log('IPC: file:create-file called', { dirPath });
+        try {
+            let name = 'Untitled.md';
+            let filePath = path.join(dirPath, name);
+            let counter = 1;
+            while (true) {
+                try {
+                    await fs.access(filePath);
+                    name = `Untitled ${counter}.md`;
+                    filePath = path.join(dirPath, name);
+                    counter++;
+                } catch {
+                    break;
+                }
+            }
+            await fs.writeFile(filePath, '', 'utf-8');
+            log('IPC: file:create-file success', { filePath });
+            return { success: true, filePath, name };
+        } catch (error) {
+            logError('IPC: file:create-file failed', error as Error);
+            return { success: false, error: String(error) };
+        }
+    });
+
+    // File: Create new folder on disk
+    ipcMain.handle('file:create-folder', async (_event, dirPath: string) => {
+        log('IPC: file:create-folder called', { dirPath });
+        try {
+            let name = 'New Folder';
+            let folderPath = path.join(dirPath, name);
+            let counter = 1;
+            while (true) {
+                try {
+                    await fs.access(folderPath);
+                    name = `New Folder ${counter}`;
+                    folderPath = path.join(dirPath, name);
+                    counter++;
+                } catch {
+                    break;
+                }
+            }
+            await fs.mkdir(folderPath, { recursive: true });
+            log('IPC: file:create-folder success', { folderPath });
+            return { success: true, folderPath, name };
+        } catch (error) {
+            logError('IPC: file:create-folder failed', error as Error);
+            return { success: false, error: String(error) };
+        }
+    });
+
+    // File: Move file or folder to a new parent directory
+    ipcMain.handle('file:move', async (_event, sourcePath: string, destDir: string) => {
+        log('IPC: file:move called', { sourcePath, destDir });
+        try {
+            const baseName = path.basename(sourcePath);
+            const destPath = path.join(destDir, baseName);
+            if (sourcePath === destPath) {
+                return { success: true, destPath: sourcePath };
+            }
+            await fs.rename(sourcePath, destPath);
+            log('IPC: file:move success', { destPath });
+            return { success: true, destPath };
+        } catch (error) {
+            logError('IPC: file:move failed', error as Error);
+            return { success: false, error: String(error) };
+        }
+    });
+
+    // File: Delete file or folder
+    ipcMain.handle('file:delete', async (_event, itemPath: string) => {
+        log('IPC: file:delete called', { itemPath });
+        try {
+            const stat = await fs.stat(itemPath);
+            if (stat.isDirectory()) {
+                await fs.rm(itemPath, { recursive: true, force: true });
+            } else {
+                await fs.unlink(itemPath);
+            }
+            log('IPC: file:delete success', { itemPath });
+            return { success: true };
+        } catch (error) {
+            logError('IPC: file:delete failed', error as Error);
+            return { success: false, error: String(error) };
+        }
+    });
+
     // File: Save dropped image (copy existing file to images folder)
     ipcMain.handle('file:save-dropped-image', async (_event, sourcePath: string, documentDir: string) => {
         log('IPC: file:save-dropped-image called', { sourcePath, documentDir });
@@ -859,9 +1029,34 @@ function createWindow() {
         await saveConfig({ ...config, devToolsOpen: false });
     });
 
+    // Flush config to disk before the window actually closes.
+    // The renderer persists config on every action, but this covers any
+    // edge cases where the latest state hasn't reached disk yet.
+    let isClosing = false;
+    mainWindow.on('close', (e) => {
+        if (isClosing) return;
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            isClosing = true;
+            e.preventDefault();
+            mainWindow.webContents.send('app:before-close');
+
+            const timeout = setTimeout(() => {
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                    mainWindow.destroy();
+                }
+            }, 3000);
+
+            ipcMain.once('app:close-ready', () => {
+                clearTimeout(timeout);
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                    mainWindow.destroy();
+                }
+            });
+        }
+    });
+
     // Emitted when the window is closed
     mainWindow.on('closed', () => {
-        // Dereference the window object
         mainWindow = null;
     });
 }

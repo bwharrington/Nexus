@@ -59,6 +59,17 @@ import {
     Copy,
     ClipboardCopy,
     ClipboardList,
+    FolderPlus,
+    FolderClosed,
+    ChevronRight,
+    ArrowDownAZ,
+    ArrowUpZA,
+    ChevronsDownUp,
+    ChevronsUpDown,
+    FilePlus,
+    PanelLeftOpen,
+    PanelLeftClose,
+    FolderInput,
 } from 'lucide-react';
 
 type MuiFontSize = 'inherit' | 'small' | 'medium' | 'large';
@@ -190,3 +201,14 @@ export const MinusIcon = createIcon(Minus);
 export const CopyIcon = createIcon(Copy);
 export const ClipboardCopyIcon = createIcon(ClipboardCopy);
 export const PlanIcon = createIcon(ClipboardList);
+export const FolderPlusIcon = createIcon(FolderPlus);
+export const FolderClosedIcon = createIcon(FolderClosed);
+export const ChevronRightIcon = createIcon(ChevronRight);
+export const ArrowDownAZIcon = createIcon(ArrowDownAZ);
+export const ArrowUpZAIcon = createIcon(ArrowUpZA);
+export const ChevronsDownUpIcon = createIcon(ChevronsDownUp);
+export const ChevronsUpDownIcon = createIcon(ChevronsUpDown);
+export const FilePlusIcon = createIcon(FilePlus);
+export const PanelLeftOpenIcon = createIcon(PanelLeftOpen);
+export const PanelLeftCloseIcon = createIcon(PanelLeftClose);
+export const FolderInputIcon = createIcon(FolderInput);

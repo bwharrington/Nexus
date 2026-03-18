@@ -8,3 +8,4 @@ export { RstToolbar } from './RstToolbar';
 export { MermaidDiagram } from './MermaidDiagram';
 export { AIChatDialog } from './AIChatDialog';
 export { SettingsDialog } from './SettingsDialog';
+export { FileDirectory } from './FileDirectory';
