@@ -1,10 +1,10 @@
-# Nexus Feature Documentation 1.2
+# Nexus AI Feature Documentation
 
-This document describes the Nexus feature in Nexus, covering configuration, the chat dialog, edit mode, diff visualization, and the underlying architecture.
+This document describes the Nexus AI feature in Nexus, covering configuration, the chat dialog, all AI modes, diff visualization, and the underlying architecture.
 
 ---
 
-## Table of Contents 1.2
+## Table of Contents
 
 1. [Overview](#overview)
 2. [Configuration](#configuration)
@@ -14,13 +14,16 @@ This document describes the Nexus feature in Nexus, covering configuration, the 
    - [Secure Storage](#secure-storage)
 3. [Chat Dialog](#chat-dialog)
    - [Opening and Closing](#opening-and-closing)
-   - [Floating vs Docked Mode](#floating-vs-docked-mode)
+   - [Docked Mode](#docked-mode)
    - [Provider and Model Selection](#provider-and-model-selection)
    - [Sending Messages](#sending-messages)
    - [Message Display](#message-display)
    - [File Attachments](#file-attachments)
    - [Loading Indicators](#loading-indicators)
-4. [Edit Mode and Diff System](#edit-mode-and-diff-system)
+4. [Ask Mode](#ask-mode)
+   - [How Ask Mode Works](#how-ask-mode-works)
+   - [Ask Mode Output](#ask-mode-output)
+5. [Edit Mode and Diff System](#edit-mode-and-diff-system)
    - [Activating Edit Mode](#activating-edit-mode)
    - [How Edits Are Requested](#how-edits-are-requested)
    - [Diff Computation](#diff-computation)
@@ -28,32 +31,17 @@ This document describes the Nexus feature in Nexus, covering configuration, the 
    - [Accepting and Rejecting Changes](#accepting-and-rejecting-changes)
    - [Keyboard Shortcuts](#keyboard-shortcuts)
    - [Source File Protection](#source-file-protection)
-5. [Research Mode](#research-mode)
-   - [Activating Research Mode](#activating-research-mode)
-   - [How Research Works](#how-research-works)
-   - [Research Output](#research-output)
-6. [Go Deeper Mode](#go-deeper-mode)
-   - [Activating Go Deeper](#activating-go-deeper)
-   - [How Go Deeper Works](#how-go-deeper-works)
-   - [Topic Selection](#topic-selection)
-   - [Go Deeper Output](#go-deeper-output)
-   - [Loading States — Nexus Progress Stepper](#loading-states--nexus-progress-stepper-1)
-   - [Cancellation](#cancellation-1)
-   - [Debugging & Logging](#debugging--logging-1)
-7. [Plan Mode](#plan-mode)
-   - [Activating Plan Mode](#activating-plan-mode)
-   - [How Plan Mode Works](#how-plan-mode-works)
-   - [Plan Output](#plan-output)
-   - [Web Research Enhancement](#web-research-enhancement)
-   - [Loading States — Plan Progress Stepper](#loading-states--plan-progress-stepper)
-   - [Cancellation](#cancellation-2)
-   - [Debugging & Logging](#debugging--logging-2)
-8. [Supported AI Providers](#supported-ai-providers)
+6. [Create Mode](#create-mode)
+   - [Activating Create Mode](#activating-create-mode)
+   - [How Create Mode Works](#how-create-mode-works)
+   - [Create Mode Output](#create-mode-output)
+   - [Loading States — Create Progress](#loading-states--create-progress)
+7. [Supported AI Providers](#supported-ai-providers)
    - [Claude (Anthropic)](#claude-anthropic)
    - [OpenAI](#openai)
    - [Google Gemini](#google-gemini)
    - [xAI (Grok)](#xai-grok)
-9. [Architecture](#architecture)
+8. [Architecture](#architecture)
    - [File Structure](#file-structure)
    - [IPC Communication](#ipc-communication)
    - [State Management](#state-management)
@@ -62,15 +50,13 @@ This document describes the Nexus feature in Nexus, covering configuration, the 
 
 ## Overview
 
-The Nexus feature allows users to interact with AI language models directly within the Nexus editor. It supports five modes:
+The Nexus AI feature allows users to interact with AI language models directly within the Nexus editor. It supports three modes:
 
-- **Chat Mode**: A conversational interface for asking questions, brainstorming, or getting help with writing. The AI sees the current document as context and responds in a chat bubble format.
-- **Edit Mode**: The AI modifies the current markdown document based on user instructions. Changes are presented in a **dedicated diff tab** with a unified inline diff view, where the user can accept or reject changes on a per-hunk basis.
-- **Research Mode**: Deep research on any topic. The AI performs a multi-phase process — first inferring the target audience and relevant fields, then generating a comprehensive, structured research report with automatic deepening passes. The output opens as a new markdown file tab in preview mode.
-- **Go Deeper Mode**: Expands and enriches an existing research report. The AI analyzes the document, suggests expansion topics, lets the user select which to pursue, then generates exhaustive addendums and merges them back into a versioned document.
-- **Plan Mode**: Generates a comprehensive, actionable project plan for any task or initiative. The AI analyzes the request, optionally searches the web for current context (requires a Serper API key), then produces a structured plan document with objectives, work breakdown, risk assessment, and next steps. Opens as a new markdown file tab.
+- **Ask Mode**: A stateless Q&A interface. Every question is completely independent — only the current question (plus any attached files) is sent to the API. Previous Q&A pairs are shown in the panel for reference but are not included in subsequent requests. Great for quick, focused questions where each answer stands alone.
+- **Edit Mode**: The AI modifies the current Markdown document based on user instructions. Changes are presented in a **dedicated diff tab** with a unified inline diff view, where the user can accept or reject changes on a per-hunk basis.
+- **Create Mode**: The AI generates a complete new Markdown document from a user description. Optional file attachments provide context. The result opens as a new document tab in preview mode.
 
-Four AI providers are supported: **Claude (Anthropic)**, **OpenAI**, **Google Gemini**, and **xAI (Grok)**. Edit mode is supported by Claude, OpenAI, and Gemini. Research, Go Deeper, and Plan modes are supported by all four providers. xAI is restricted from Edit mode only (structured output not yet available). Each provider's models are filtered at the API level to surface only the models relevant for chat use.
+Four AI providers are supported: **Claude (Anthropic)**, **OpenAI**, **Google Gemini**, and **xAI (Grok)**. Edit mode is supported by Claude, OpenAI, and Gemini. xAI is restricted from Edit mode only (structured output not yet available). Ask and Create modes are supported by all four providers.
 
 ---
 
@@ -78,7 +64,7 @@ Four AI providers are supported: **Claude (Anthropic)**, **OpenAI**, **Google Ge
 
 ### API Key Setup
 
-API keys are configured in **Settings** (gear icon in the toolbar). The AI API Keys section provides input fields for each provider:
+API keys are configured in **Settings** (gear icon in the toolbar, or `Ctrl+,`). The AI API Keys section provides input fields for each provider:
 
 - **Claude** - Requires an Anthropic API key
 - **OpenAI** - Requires an OpenAI API key
@@ -176,58 +162,43 @@ Encrypted keys are stored in `{userData}/encrypted-keys.json` as base64-encoded 
 - Click the **X** button in the dialog header
 - Press **Escape** while the dialog is focused
 
-### Floating vs Docked Mode
+### Docked Mode
 
-The chat dialog supports two display modes:
+The chat panel is docked to the right side of the editor with a resizable divider:
 
-**Floating Mode (default):**
-
-- The dialog appears as a draggable, resizable overlay on top of the editor
-- It can be repositioned by dragging the header bar
-- It can be resized using the bottom-left resize handle
-- When unfocused, the dialog becomes semi-transparent (60% opacity) and returns to full opacity when focused
-- Minimum size: 350px wide
-
-**Docked Mode:**
-
-- Click the dock icon in the dialog header to dock the panel to the right side of the editor
-- The docked panel has a resizable divider between the editor and the chat panel
 - Minimum dock width: 320px, default: 420px
 - Dock width is saved to `config.json` (`aiChatDockWidth`) and persists between sessions
-- The dock state itself (`aiChatDocked`) also persists in configuration
+- The panel can be toggled open/closed via the toolbar AI button or `Ctrl+Shift+A`
 
 ### Provider and Model Selection
 
-At the top of the chat dialog, two dropdowns allow selecting the AI provider and model:
+The mode dropdown, model dropdown, and attachment icon are displayed in the input controls at the bottom of the panel:
 
-**Provider Dropdown:**
+**Mode Dropdown:**
 
-- Lists available providers that have API keys configured
-- Each provider shows a colored status dot:
-  - Green: Connected and working
-  - Red: Error (invalid key or API issue)
-  - Orange: Currently checking connection
-  - Grey: Unchecked
-- Provider auto-selection priority: saved provider → Claude → OpenAI → Gemini → xAI
+- Switch between **Ask**, **Edit**, and **Create** modes
+- Mode is persisted in `config.json` (`aiChatMode`)
+- Disabled while a request is active or a diff tab is open
 
 **Model Dropdown:**
 
-- Lists enabled models for the selected provider
-- Updates dynamically when the provider changes
-- Auto-selects the first available model
+- Lists enabled models for the selected provider, grouped by provider
+- Automatically filters out models restricted from the current mode (e.g., xAI is hidden from the model dropdown when Edit mode is selected)
+- Updates dynamically when mode changes
+- Persists selection in `config.json` (`aiChatModel`)
 
 ### Sending Messages
 
-- Type a message in the text input at the bottom of the dialog
-- Press **Enter** to send (or click the Send button)
+- Type a message in the text input at the bottom of the panel
+- Press **Enter** to send (or click the Send/Edit/Create button)
 - Press **Shift+Enter** for a line break without sending
 - The input supports up to 4 visible rows (multiline)
 - The send button is disabled when the input is empty, a request is loading, or a diff tab is currently open
-- Active requests can be canceled using the Cancel button next to the input
+- Active requests can be canceled using the **Cancel** button
 
 ### Message Display
 
-Messages appear as styled bubbles in the messages container:
+In **Ask Mode**, messages appear as styled bubbles in the messages container:
 
 **User messages:**
 
@@ -242,6 +213,7 @@ Messages appear as styled bubbles in the messages container:
 - Maximum width: 85% of the container
 - Content rendered as Markdown using `ReactMarkdown`, supporting formatted text, code blocks, lists, and other Markdown elements
 - **Code blocks with syntax highlighting**: Fenced code blocks (e.g., ` ```javascript `) are rendered with language-aware syntax highlighting using `react-syntax-highlighter` with Prism. Colors adapt to light/dark theme (oneLight / oneDark)
+- A **Copy** button appears below each assistant response
 
 The message area automatically scrolls to the latest message using smooth scrolling.
 
@@ -249,19 +221,11 @@ The message area automatically scrolls to the latest message using smooth scroll
 
 - Click the delete icon in the dialog header
 - A confirmation dialog appears before clearing all messages
-- Clears all messages and any error state
+- Clears all Ask mode messages and any error state
 
 ### File Attachments
 
-The chat supports file attachments for providing additional context. Files can be attached automatically, from the attachment popover, or from the tab bar context menu.
-
-**Context Document (auto-attached active file):**
-
-- When the chat dialog opens, the currently active file is automatically attached as the **context document**
-- A chip labeled with the file name and a visibility (eye) icon appears in the attachments area
-- The context document can be toggled visible/hidden via its eye icon — hidden context documents are not sent to the AI
-- When the active file changes (by switching tabs), the newly active file becomes the context document and inherits the eye icon. The previously active file remains in the attachment list as a regular attachment that can be removed
-- When the context document is saved while attached, the attachment chip shows a blue glow animation to indicate the content has been updated
+The chat supports file attachments for providing additional context. Files can be attached via the attachment popover or from the tab bar context menu.
 
 **Attach File Popover:**
 
@@ -269,7 +233,6 @@ Clicking the attachment icon (paperclip) next to the text input opens a popover 
 
 1. **"Files and Folders"** — Opens the native file dialog to browse and select files from the computer (multi-select supported)
 2. **Open Files List** — Shows all currently open editor tabs (excluding diff tabs) with per-file actions:
-   - **Context document**: Displays an eye icon (filled when visible, outline when hidden). Clicking toggles visibility on/off
    - **Already manually attached**: The file is hidden from the list since it already appears as a removable chip below the input
    - **Available to attach**: Displays a green plus (+) icon. Clicking attaches the file
    - **Unsaved files** (no path on disk): Shown as disabled/greyed out and cannot be attached
@@ -280,22 +243,22 @@ The popover has a maximum height of 360px and scrolls when the file list is long
 
 Right-clicking a file tab shows AI attachment options:
 
-- **For the context document**: A "Hide/Show *filename* from AI" option with the corresponding eye icon. This toggles the context document's visibility without removing it
-- **For other files**: An "Attach/Remove *filename*" option. Files not yet attached show a green plus icon; already-attached files show a red minus icon
-- Diff tabs and unsaved files (no path) are excluded from these options
+- **Attach/Remove *filename***: Attach or detach the file from the AI context
 
 **Supported File Types:**
 
 - **Text files**: `.txt`, `.md`, `.markdown`, `.json`, `.js`, `.ts`, `.tsx`, `.jsx`, `.css`, `.html`, `.xml`, `.yaml`, `.yml`, `.log` — sent inline as `[File: filename]\ncontent` in the message
 - **Images**: `.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.webp` — Base64-encoded and sent with their MIME type using provider-specific image formats
 
+**In Ask Mode**, attached files are included in the single-question API call and cleared from the attachment list after sending.
+
 ### Loading Indicators
 
 #### Nexus Aura
 
-While any AI request is active, the Nexus panel displays the **Nexus Aura** — a continuously rotating conic gradient that sweeps around the outer border of the panel in a loop of deep blue → cyan → white → gold → amber → white → cyan → deep blue. It is implemented as a 3px masked pseudo-element (`conic-gradient` driven by a CSS custom property `--border-angle` that animates from 0° to 360°) layered on top of the panel border. The Nexus Aura is visible in every mode (Chat, Edit, Research, Go Deeper, Insight Forge) and stops as soon as the request completes or is cancelled.
+While any AI request is active, the Nexus panel displays the **Nexus Aura** — a continuously rotating conic gradient that sweeps around the outer border of the panel in a loop of deep blue → cyan → white → gold → amber → white → cyan → deep blue. It is implemented as a 3px masked pseudo-element (`conic-gradient` driven by a CSS custom property `--border-angle` that animates from 0° to 360°) layered on top of the panel border. The Nexus Aura is visible in every mode (Ask, Edit, Create) and stops as soon as the request completes or is cancelled.
 
-**Chat Mode:**
+**Ask Mode:**
 
 - A centered `CircularProgress` spinner appears in the messages area while waiting for a response
 
@@ -307,10 +270,9 @@ While any AI request is active, the Nexus panel displays the **Nexus Aura** — 
 - Each character appears with a 30ms delay for a typewriter effect
 - Messages use a shuffle-bag pattern so no message repeats until all have been shown
 
-**Research Mode:**
+**Create Mode:**
 
-- The send button shows a spinner while research is in progress
-- The **Nexus Progress Stepper** is displayed in the messages area (see [Loading States — Nexus Progress Stepper](#loading-states--nexus-progress-stepper) in the Research Mode section)
+- The **Create Progress Stepper** is displayed in the messages area (see [Loading States — Create Progress](#loading-states--create-progress) in the Create Mode section)
 
 **Provider/Model Loading:**
 
@@ -319,14 +281,50 @@ While any AI request is active, the Nexus panel displays the **Nexus Aura** — 
 
 ---
 
+## Ask Mode
+
+Ask Mode is a **stateless Q&A** interface. Each question is completely independent — no conversation history is maintained between requests.
+
+### How Ask Mode Works
+
+When the user submits a question in Ask mode:
+
+1. A baked-in system prompt is prepended to the question:
+   ```
+   You are a direct, concise question-answering assistant. Follow these rules strictly:
+   - Answer ONLY the current question. Do not reference any previous questions or answers.
+   - Be concise and direct. Lead with the answer, not reasoning.
+   - If the question is unclear, ask exactly ONE clarifying question.
+   - If file context is provided, use it to inform your answer but do not summarize the files unless asked.
+   - Use Markdown formatting when it improves readability (code blocks, lists, bold).
+   - Do not add preamble, filler, or follow-up questions — just answer.
+   ```
+2. The combined system prompt + user question is sent as a **single user message** — no prior messages are included
+3. If files are attached, their content is included in the same message
+4. The response is displayed as an assistant bubble; the user question is displayed as a user bubble
+5. Attached files are cleared from the attachment list after sending
+
+Each question is fully independent at the API level. The Q&A history shown in the panel is for reference only and is never sent to the AI.
+
+**Provider routing** follows the same pattern as other modes: requests are routed to the appropriate provider channel (`claudeChatRequest`, `openaiChatRequest`, `geminiChatRequest`, or `aiChatRequest` for xAI) based on the selected model's provider.
+
+### Ask Mode Output
+
+- Question/answer pairs are displayed as chat bubbles and persist in the panel for the session
+- Each assistant response includes a **Copy** button for easy copying
+- Clearing the chat (delete icon in the header) removes all Ask mode history
+- Ask mode history is not persisted across sessions
+
+---
+
 ## Edit Mode and Diff System
 
 ### Activating Edit Mode
 
-- Toggle the **Edit Mode** switch in the chat dialog (between the model dropdown and the input area)
+- Select **Edit** from the Mode dropdown in the Nexus panel
 - When active, the send button turns green and shows an edit icon instead of a send icon
-- The placeholder text changes to "Describe the changes..."
-- Edit mode is supported for **Claude**, **OpenAI**, and **Google Gemini** providers. When xAI is selected, edit mode is disabled and a warning chip is displayed
+- The placeholder text changes to "Describe the changes you want... (e.g., 'Add a table of contents')"
+- Edit mode is supported for **Claude**, **OpenAI**, and **Google Gemini** providers. When xAI is selected as the model, the Edit mode option is hidden from the mode dropdown
 - Edit mode is disabled while a diff tab is already open
 
 ### How Edits Are Requested
@@ -487,387 +485,75 @@ This prevents conflicts between manual edits and the pending diff changes. Once 
 
 ---
 
-## Research Mode
+## Create Mode
 
-### Activating Research Mode
+Create Mode generates a **complete, new Markdown document** from a user description and opens it as a new editor tab.
 
-- Select **Research** from the Mode dropdown in the Nexus panel
-- Research mode is supported for all four providers: **Claude**, **OpenAI**, **Google Gemini**, and **xAI**
-- The input placeholder changes to "Enter a research topic..." and the send button shows a telescope icon with an info-blue color
+### Activating Create Mode
 
-### How Research Works
+- Select **Create** from the Mode dropdown in the Nexus panel
+- The input placeholder changes to "Describe what you want to create... (e.g., 'A blog post about React hooks', 'A project README')"
+- The send button shows a create icon with a secondary (purple) color
+- Create mode is supported for all four providers: **Claude**, **OpenAI**, **Google Gemini**, and **xAI**
 
-Research mode uses a **multi-phase AI flow** with dynamic deepening to produce comprehensive, structured research reports:
+### How Create Mode Works
 
-**Phase 1 — Pre-Prompt Inference (Automatic):**
+Create Mode uses a **two-phase AI pipeline**:
 
-When the user submits a research topic, a quick preliminary LLM call analyzes the topic to infer:
-- **Target audience** (e.g., "mid-level software engineers building AI apps")
-- **Relevant fields** (e.g., technology, databases, software engineering)
-- **Focus areas** (key angles to explore)
-- **Deep dive topics** (4-6 specific technical concepts to explore in depth)
+**Phase 1 — Content Generation:**
 
-The user's full message serves as both the topic and the user intent — no separate input is needed. This inference step uses the same provider and model the user has selected. If inference fails (e.g., invalid JSON response), sensible defaults are used automatically.
+When the user submits a description, the AI is instructed to generate a complete, well-structured Markdown document based on the description. Any attached files are included as context to inform the content. The prompt template instructs the AI to:
+- Generate a complete document (not a skeleton or outline)
+- Use proper Markdown structure with headings, lists, and formatting
+- Tailor the output to the described content type (blog post, README, spec, letter, etc.)
+- Use the attached file context to inform the content if provided
 
-**Phase 2 — Main Research Call:**
+**Phase 2 — Filename Generation:**
 
-The inferred metadata (audience, fields, focus areas, deep dive topics) is injected into a comprehensive research prompt template that instructs the AI to produce a detailed, structured research report. The template enforces:
-- Depth-first analysis with historical context, current state, and future projections
-- Technical mastery with code examples, architectures, and implementation guides
-- Dedicated deep dive sections for each inferred topic
-- Truth-seeking with source citations and confidence ratings
-- Strategic value tailored to the inferred audience
+After the content is generated, a lightweight AI call generates a short, descriptive Title Case filename (max 30 characters, no extension). The result is sanitized, and falls back to a slug derived from the description if naming fails.
 
-**Phase 3 — Dynamic Deepening (Multi-Turn Chaining):**
+Both phases support automatic continuation for long responses (`callWithContinuation`).
 
-After the main research call, automatic follow-up calls expand the technical sections based on the inferred deep dive topics:
+### Create Mode Output
 
-- Deep dive topics are **batched into groups of 2** per follow-up call
-- Up to **3 deepening calls** maximum (covering up to 6 topics)
-- The number of calls is dynamic: `Math.min(Math.ceil(topics.length / 2), 3)`
-- Each deepening call asks the AI for exhaustive coverage of its batch: internals, code examples, pitfalls, best practices, and latest updates
-- If no deep dive topics were inferred, deepening is skipped entirely
-
-**Graceful degradation:** If any deepening call fails, the base report plus any successful deepening results are still used. The research never fails due to a deepening error.
-
-**Final merge:** The base report and all successful deepening responses are concatenated with a horizontal rule separator (`---`) to form the final document.
-
-**Phase 4 — Filename Inference:**
-
-After the research content is assembled, a final lightweight LLM call generates a descriptive filename for the tab:
-- The AI is prompted to return a short, descriptive Title Case filename (max 50 chars, no extension)
-- The response is sanitized (invalid characters removed, length truncated to 60 chars)
-- **Graceful fallback:** If the naming call fails, the tab uses the legacy format `Research - <topic snippet>.md`
-
-### Research Output
-
-The merged AI response is opened as a **new markdown file tab** in preview mode:
-- Tab name: AI-inferred descriptive name with `.md` extension (e.g., `React Hooks Deep Dive.md`)
-- Falls back to `Research - <topic snippet>.md` if naming fails
-- File is virtual (not saved to disk) with `path: null`
-- Opens in preview mode for immediate reading
-- Can be saved to disk using Ctrl+S / Save As
-
-### Output Structure
-
-The research report follows a standardized markdown format:
-- **Executive Summary**: 4-6 bullet takeaways
-- **Historical Evolution**: Timeline of milestones
-- **Current State**: Landscape, leaders, metrics
-- **Key Debates & Risks**: Pros/cons, controversies
-- **Engineering & Implementation Guide**: Code examples, architectures, tools, plus dedicated deep dive subsections for inferred topics
-- **Future Horizons**: 2026-2030 projections
-- **Actionable Playbook**: Recommendations, experiments
-- **Sources & Rigor**: References, confidence matrix
-- **Extended Technical Deep Dive** (appended from deepening calls): Exhaustive coverage of each deep dive topic with production-ready code, pitfalls, and comparative analysis
-
-### Loading States — Nexus Progress Stepper
-
-During research, the chat panel shows the **Nexus Progress Stepper** (`ResearchProgress` component) — a vertical timeline that visualizes all four phases as a sequence of steps:
-
-```
-● Analyzing Topic                    ✓ 2.1s
-  "Identifying key research angles..."
-  ┌──────────────────────────────────┐
-  │ Audience: mid-level engineers    │
-  │ Fields: React, TypeScript        │
-  │ Topics: useEffect, useMemo ...   │
-  └──────────────────────────────────┘
-
-◉ Compiling Research Report          ⟳ active
-  "Synthesizing findings..."
-
-○ Expanding Depth (0/3)              pending
-
-○ Generating Filename                pending
-```
-
-**Step indicators:**
-- **Pending** (grey dot): Phase not yet started, label dimmed
-- **Active** (pulsing blue dot): Currently running, shows typewriter-animated message with blinking cursor
-- **Complete** (green checkmark): Phase finished, shows elapsed time badge (e.g., "2.1s")
-
-**Phase-specific typewriter messages** rotate every 5 seconds:
-- **Inference**: "Analyzing your topic...", "Identifying key research angles...", "Mapping the knowledge landscape..."
-- **Researching**: "Compiling research report...", "Synthesizing findings...", "Building executive summary..."
-- **Deepening**: "Expanding technical deep dive...", "Adding code examples and patterns..." with a progress counter showing "(1/3)", "(2/3)", etc.
-- **Naming**: "Generating filename...", "Picking the perfect title...", "Naming your report..."
-
-**Metadata cards:** After inference completes, a bordered card appears showing the AI-inferred audience, fields (as chips), and deep dive topics (as info-colored chips).
-
-Each message appears with a typewriter effect (30ms per character) and a blinking cursor.
-
-### Cancellation
-
-Research requests can be canceled at any time using the Cancel button. All in-flight API calls (inference, research, deepening, and naming calls) are aborted.
-
-### Debugging & Logging
-
-All research phases are logged to the browser console with `[Research]` prefix, including:
-- Phase transitions with elapsed time
-- Inference results (audience, fields, deep dive topics)
-- Response lengths for each API call
-- Deepening batch details (which topics, batch number)
-- Errors with the phase where failure occurred
-
-Open DevTools (Ctrl+Shift+I) to view these logs for troubleshooting.
-
----
-
-## Go Deeper Mode
-
-Go Deeper is a multi-phase AI workflow that **expands and enriches an existing research report**. Where Research Mode creates a new document from scratch, Go Deeper takes an open file and generates exhaustive addendums on selected topics, merges them structurally, and versions the file in place.
-
-### Activating Go Deeper
-
-Go Deeper is triggered by a **"Go Deeper" button** that appears in the chat panel after a Research Mode run completes. It operates on whichever file is currently active in the editor.
-
-### How Go Deeper Works
-
-Go Deeper runs four sequential AI phases:
-
-**Phase D1 — Report Analysis (Automatic):**
-
-When the user clicks "Go Deeper", the AI receives the full document content and topic to identify the best expansion opportunities. The AI returns structured JSON with:
-- **New focus areas** — 2-4 key angles to expand (comma-separated)
-- **Deep dive topics** — 5-8 high-value technical/strategic topics deserving exhaustive new coverage
-- **Suggested depth level** — `practitioner` or `expert`
-- **Changelog ideas** — 4-6 short bullets previewing what will be added
-
-After analysis completes, the workflow **pauses** at topic selection. The Nexus Aura and loading state remain active during this pause.
-
-**Phase D2 — Topic Selection (User Interaction):**
-
-The progress panel replaces the active step's typewriter message with an interactive `GoDeepTopicSelector` component. It presents two sections:
-
-- **AI-Suggested Topics** — topics from the Phase D1 analysis, all pre-checked by default
-- **Document Topics** — extracted from the document's `##` and `###` headings (up to 8), filtered to exclude structural headings (changelog, references, appendix, etc.) and deduplicated against AI suggestions. All unchecked by default.
-
-The user selects any combination and clicks **"Continue with N topic(s)"** to proceed. At least one topic must be selected.
-
-**Phase D3 — Deep Dive Expansion:**
-
-Selected topics are **batched into groups of 3** (up to 4 batches maximum, covering up to 12 topics). For each batch the AI generates a rich standalone addendum targeting:
-- Latest 2025–2026 developments and changes
-- Advanced internals, mechanics, and under-the-hood details
-- Production battle stories, failure modes, and edge cases with solutions
-- More sophisticated, production-ready code examples
-- Quantitative insights, benchmarks, or comparisons
-- Alternative implementations and trade-offs
-
-Each addendum starts with a `## Deep Dive Addendum — <date>` heading. Failed batches are skipped gracefully; successful results are still used.
-
-**Phase D4 — Integration:**
-
-Two sub-steps run in sequence:
-1. A lightweight AI call generates a concise changelog bullet list (4–8 bullets) summarizing what was added. Falls back to the `changelogIdeas` from Phase D1 if this call fails.
-2. The final document is assembled: `original report` + `---` + `addendums` + `---` + `## Changelog (Deepened vN)` section.
-
-**Phase D5 — Finalization (Filename & Versioning):**
-
-A final AI call generates a new descriptive filename (Title Case, max 60 chars, no extension) reflecting that the document has been deepened. The result is sanitized and a version suffix (`v2`, `v3`, etc.) is appended if not already present. The file is updated in-place via `EditorContext`:
-- Content replaced with the merged final document
-- Filename updated to the versioned name
-- Tab selected and brought into focus
-- Success notification shown
-
-### Topic Selection
-
-The `GoDeepTopicSelector` component uses the `extractDocumentTopics` utility ([src/renderer/utils/extractDocumentTopics.ts](src/renderer/utils/extractDocumentTopics.ts)) to parse `##` and `###` headings from the active document. It excludes structural sections matching 24 patterns (e.g., changelog, sources, references, appendix, executive summary, etc.) and deduplicates against AI-suggested topics using fuzzy substring matching. Results are capped at 8 document topics.
-
-### Go Deeper Output
-
-- The active file is **modified in-place** (not a new tab)
-- Filename is versioned: `Report Title v2.md`, `Report Title v3.md`, etc.
-- The file is marked dirty — save manually with Ctrl+S / Save As
-- Document structure: original content + deep dive addendums + changelog section, separated by `---` dividers
-
-### Loading States — Nexus Progress Stepper
-
-During Go Deeper, the chat panel shows the **Nexus Progress Stepper** (`GoDeepProgress` component) with six steps:
-
-```
-● Analyzing Report                   ✓ 3.2s
-  ┌──────────────────────────────────┐
-  │ Focus: latest developments, ...  │
-  │ Topics: [Chip] [Chip] [Chip]     │
-  │ Depth:  expert                   │
-  │ Changes: - Added section on ...  │
-  └──────────────────────────────────┘
-
-◉ Select Topics                      ⟳ active (user pause)
-  AI-Suggested Topics
-      ☑ React Server Components
-      ☑ Suspense Boundaries
-      ...
-  Document Topics
-      ☐ useCallback Deep Dive
-      ...
-  [ Continue with 4 topic(s) ]
-
-○ Expanding Depth (0/3)             pending
-
-○ Integrating Content               pending
-
-○ Finalizing Document               pending
-
-○ Go Deeper Complete                pending
-```
-
-**Step indicators:**
-- **Pending** (grey dot): Phase not yet started, label dimmed
-- **Active** (pulsing blue dot + glow): Currently running; shows rotating typewriter message with blinking cursor
-- **Complete** (green checkmark dot): Phase finished; shows elapsed time badge (e.g., `3.2s`)
-- **Select Topics**: No typewriter — replaced by the interactive `GoDeepTopicSelector`
-
-**After Analysis completes**, a metadata card appears under "Analyzing Report" showing focus areas, suggested topics as info-colored chips, suggested depth level, and a preview of changelog ideas.
-
-**Expanding Depth** shows a batch counter in the label: `Expanding Depth (1/4)`, `(2/4)`, etc.
-
-**Go Deeper Complete** shows the total elapsed time across all phases when finished.
-
-**Phase-specific typewriter messages** rotate every 5 seconds:
-- **Analyzing**: "Analyzing current report...", "Scanning for gaps and opportunities...", "Mapping expansion potential...", "Evaluating depth coverage...", "Identifying high-value topics..."
-- **Expanding**: "Expanding technical deep dive...", "Adding latest developments...", "Building advanced examples...", "Enriching with production insights...", "Deepening coverage..."
-- **Integrating**: "Merging new insights...", "Weaving content together...", "Building cohesive narrative...", "Integrating addendums...", "Polishing transitions..."
-- **Finalizing**: "Generating updated filename...", "Versioning the document...", "Preparing final output..."
-
-### Cancellation
-
-Go Deeper requests can be canceled at any time using the Cancel button. The cancel handler aborts all in-flight API calls: analysis, each expansion batch (up to 4), the integration/changelog call, and the naming call. The error state shows "Go Deeper request canceled".
-
-### Debugging & Logging
-
-All Go Deeper phases are logged to the browser console with `[GoDeeper]` prefix, including:
-- Phase transitions with elapsed time from start
-- Analysis results (focus areas, topics, depth level)
-- Expansion batch details (topics per batch, response lengths)
-- Integration and changelog generation results
-- Filename generation (raw AI response, sanitized result, final filename, version number)
-- Total elapsed time on completion
-
-Open DevTools (Ctrl+Shift+I) to view these logs for troubleshooting.
-
----
-
-## Plan Mode
-
-Plan Mode generates a comprehensive, actionable project plan for any task or initiative and opens the result as a new document tab.
-
-### Activating Plan Mode
-
-- Select **Plan** from the Mode dropdown in the Nexus panel
-- Plan mode is supported for all four providers: **Claude**, **OpenAI**, **Google Gemini**, and **xAI**
-- The input placeholder changes to "Describe what you want to plan..." and the send button shows a plan icon
-
-### How Plan Mode Works
-
-Plan Mode uses a **four-phase AI pipeline**:
-
-**Phase 1 — Scoping (Automatic):**
-
-When the user submits a request, a quick preliminary LLM call analyzes it and returns a JSON blueprint:
-- **Goal summary** — 1–2 sentence distillation of what the user wants to accomplish
-- **Constraints** — inferred from context (tech stack, scope, timeline hints)
-- **Work streams** — 3–6 high-level categories of work needed
-- **Search queries** — 2–4 specific web search queries to gather relevant real-world context
-
-If the scoping call fails or returns invalid JSON, sensible defaults are used automatically.
-
-**Phase 2 — Web Research (Optional):**
-
-If a Serper API key is configured under AI API Keys in Settings, up to four web searches are run using the queries from the blueprint. Results are formatted as bulleted summaries and injected into the planning prompt as real-world context. This phase completes near-instantly if no Serper key is present (the step is shown but skipped).
-
-**Phase 3 — Plan Generation:**
-
-The blueprint and any web research results are injected into a detailed planning prompt template. The AI generates a full Markdown plan document covering all required sections (see [Plan Output](#plan-output) below). This call uses up to 16,384 output tokens and supports automatic continuation if the response is truncated.
-
-**Phase 4 — Naming:**
-
-A final lightweight LLM call generates a short, descriptive Title Case filename for the tab (e.g., `GraphQL Migration Plan.md`). The response is sanitized. Falls back to a slug derived from the request if naming fails.
-
-### Plan Output
-
-The generated plan is opened as a **new markdown file tab** in preview mode:
-- Tab name: AI-generated descriptive name with `.md` extension
+The generated document is opened as a **new virtual Markdown file tab** in preview mode:
+- Tab name: AI-inferred descriptive name with `.md` extension (e.g., `React Hooks Blog Post.md`)
 - File is virtual (not saved to disk) with `path: null`
 - Opens in preview mode for immediate reading
 - Can be saved to disk using `Ctrl+S` / Save As
 
-**Document structure:**
+### Loading States — Create Progress
+
+During a Create request, the chat panel displays the user's description (as a user bubble) followed by the **Create Progress Stepper** (`CreateProgress` component) — a vertical timeline visualizing both phases:
 
 ```
-## Objective
-## Scope & Constraints
-## Architecture / Approach
-## Work Breakdown
-  ### Work Stream 1
-  ### Work Stream 2
-  ...
-## Dependencies & Critical Path
-## Risk Assessment (table: Risk / Likelihood / Impact / Mitigation)
-## Resources & References
-## Next Steps
+◉ Generating Content              ⟳ active
+  "Generating your content..."
+
+○ Naming Document                 pending
 ```
 
-A footer line `*Generated by Plan Mode*` closes the document.
-
-### Web Research Enhancement
-
-Plan Mode optionally integrates real-time web search via **Serper**. To enable it:
-
-1. Open Settings (`Ctrl+,`)
-2. Go to **AI API Keys**
-3. Enter your Serper API key and click **Set**
-
-When a Serper key is present, Plan Mode automatically runs up to 4 targeted search queries (generated by the scoping step) and incorporates the results as web research context in the plan. This typically produces more accurate technology recommendations, up-to-date pricing estimates, and real-world implementation guidance.
-
-Without a Serper key, plans are generated entirely from the AI's training data — the Searching the Web step still appears in the progress stepper but completes immediately.
-
-### Loading States — Plan Progress Stepper
-
-During a plan request, the chat panel shows the **Plan Progress Stepper** (`PlanProgress` component) — a vertical timeline that visualizes all four phases:
+After both phases complete:
 
 ```
-● Analyzing Request                  ✓ 1.3s
-
-● Searching the Web                  ✓ 2.8s   (or near-instant if no Serper key)
-
-◉ Generating Plan                    ⟳ active
-  "Building your plan..."
-
-○ Naming Document                    pending
-
-○ Plan Complete                      pending
+● Generating Content              ✓
+● Naming Document                 ✓
+● Document Created
 ```
 
 **Step indicators:**
-- **Pending** (grey dot): Phase not yet started, label dimmed
-- **Active** (pulsing amber dot): Currently running, shows typewriter-animated message with blinking cursor
-- **Complete** (green checkmark): Phase finished, shows elapsed time badge (e.g., `2.8s`)
-- **Plan Complete**: Shows total elapsed time across all phases when finished
+- **Active** (pulsing secondary/purple dot): Currently running, shows a rotating typewriter message
+- **Complete** (green checkmark): Phase finished
 
 **Phase-specific typewriter messages** rotate every 5 seconds:
-- **Scoping**: "Analyzing your request...", "Identifying work streams...", "Inferring constraints...", "Formulating search queries..."
-- **Researching**: "Searching the web for context...", "Gathering relevant information...", "Collecting best practices...", "Fetching current documentation..."
-- **Planning**: "Building your plan...", "Drafting work breakdown...", "Assessing risks...", "Writing architecture approach...", "Defining next steps...", "Structuring deliverables..."
-- **Naming**: "Generating filename...", "Picking a descriptive title...", "Naming your plan..."
+- **Generating**: "Generating your content...", "Crafting the document...", "Writing sections...", "Building your document...", "Composing content..."
+- **Naming**: "Naming your document...", "Picking a title...", "Generating filename..."
+
+When the document is created, a green **"Created — filename.md"** banner appears in the messages area.
 
 ### Cancellation
 
-Plan requests can be canceled at any time using the Cancel button. All in-flight API calls (scoping, research searches, planning, and naming — including any continuation calls) are aborted.
-
-### Debugging & Logging
-
-All plan phases are logged to the browser console with `[Plan]` prefix, including:
-- Phase transitions with elapsed time
-- Scoping blueprint results (goal summary, constraints, work streams, search queries)
-- Web research details (queries run, whether Serper was available)
-- Plan content length and continuation count
-- Naming results (raw response, sanitized name, final filename)
-- Errors with the phase where failure occurred
-
-Open DevTools (Ctrl+Shift+I) to view these logs for troubleshooting.
+Create requests can be canceled at any time using the Cancel button. All in-flight API calls (content generation and naming — including any continuation calls) are aborted.
 
 ---
 
@@ -881,8 +567,9 @@ Open DevTools (Ctrl+Shift+I) to view these logs for troubleshooting.
 - **Default Fallback Models**: Claude Opus 4.6, Claude Sonnet 4.6, Claude Haiku 4.5
 - **Chat Token Limit**: 4,096 max output tokens
 - **Edit Token Limit**: 16,384 max output tokens
+- **Ask Mode**: Supported
 - **Edit Mode**: Supported (uses system prompt for structured JSON output)
-- **Research Mode**: Supported
+- **Create Mode**: Supported
 - **Image Attachments**: Native format with `media_type` and base64 `data`
 - **Model Filtering**: Only `claude-` models are included; old Claude 3 base generation (pre-3.5) models are excluded
 - **Validation**: Test call to `/v1/models` endpoint
@@ -893,8 +580,9 @@ Open DevTools (Ctrl+Shift+I) to view these logs for troubleshooting.
 - **API Endpoint**: `https://api.openai.com/v1/chat/completions`
 - **Authentication**: `Bearer` token in `Authorization` header
 - **Default Fallback Models**: GPT-5.2, GPT-5.1, GPT-5, GPT-5 Mini, GPT-4o Latest, o3, o4 Mini
+- **Ask Mode**: Supported
 - **Edit Mode**: Supported (uses `response_format: { type: 'json_object' }`)
-- **Research Mode**: Supported
+- **Create Mode**: Supported
 - **Image Attachments**: Data URL format with `image_url`
 - **Model Filtering**: GPT models included only with `-latest` suffix; o-series reasoning models included as base IDs only (e.g., `o1`, `o3`, `o4-mini`)
 - **Validation**: Test call to list models endpoint
@@ -904,8 +592,9 @@ Open DevTools (Ctrl+Shift+I) to view these logs for troubleshooting.
 - **API Endpoint**: `https://generativelanguage.googleapis.com/v1beta`
 - **Authentication**: `x-goog-api-key` header
 - **Default Fallback Models**: Gemini 3 Pro Preview, Gemini 3 Flash Preview
+- **Ask Mode**: Supported
 - **Edit Mode**: Supported (uses `response_mime_type: 'application/json'` for JSON mode; system prompt prepended as first user message since Gemini lacks a dedicated system role)
-- **Research Mode**: Supported
+- **Create Mode**: Supported
 - **Image Attachments**: Inline data format with `mimeType` and base64 `data` in Gemini's `inlineData` part
 - **Text Attachments**: Appended as text parts in the Gemini `parts` array
 - **Model Filtering**: Only `gemini-` branded chat models that support `generateContent`; excludes embedding, image-generation, dated snapshot, numbered version, and `-latest` alias variants
@@ -917,9 +606,9 @@ Open DevTools (Ctrl+Shift+I) to view these logs for troubleshooting.
 - **API Endpoint**: `https://api.x.ai/v1/chat/completions`
 - **Authentication**: `Bearer` token in `Authorization` header
 - **Default Fallback Models**: Grok 4, Grok 4.1, Grok 4.1 Reasoning
+- **Ask Mode**: Supported
 - **Edit Mode**: Not supported (no structured output; restricted via `aiProviderModeRestrictions.ts`)
-- **Research Mode**: Supported
-- **Go Deeper Mode**: Supported
+- **Create Mode**: Supported
 - **Image Attachments**: Data URL format with `image_url` (same as OpenAI format)
 - **Text Attachments**: Inline text content format
 - **Model Filtering**: Only `grok-4` models; excludes image, video, and image-generation variants
@@ -935,29 +624,23 @@ Open DevTools (Ctrl+Shift+I) to view these logs for troubleshooting.
 
 | File                                                      | Purpose                                                                      |
 | --------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `src/renderer/components/AIChatDialog.tsx`              | Main chat dialog component, orchestrates sub-components                      |
-| `src/renderer/components/ChatMessages.tsx`              | Chat message bubbles with Markdown rendering and sci-fi diff review messages |
-| `src/renderer/components/ProviderSelector.tsx`          | Provider and model dropdown selectors with status indicators                 |
-| `src/renderer/components/FileAttachmentsList.tsx`       | File attachment chips and context document management                        |
+| `src/renderer/components/AIChatDialog.tsx`              | Main chat panel component, orchestrates sub-components and routes mode requests |
+| `src/renderer/components/ChatMessages.tsx`              | Chat message bubbles with Markdown rendering                                 |
+| `src/renderer/components/FileAttachmentsList.tsx`       | File attachment chips management                                             |
 | `src/renderer/components/AttachFilePopover.tsx`         | Popover for attaching open files or browsing from disk                       |
-| `src/renderer/components/MessageInput.tsx`              | Message text input, send/edit button, cancel, and attachment popover trigger |
-| `src/renderer/components/TabBar.tsx`                    | File tabs with AI attachment context menu (attach/remove, show/hide)         |
-| `src/renderer/components/CodeBlock.tsx`                  | Syntax-highlighted code blocks using PrismLight (react-syntax-highlighter)   |
-| `src/renderer/components/ResearchProgress.tsx`          | Nexus Progress Stepper for research phase visualization with metadata cards     |
-| `src/renderer/components/GoDeepProgress.tsx`            | Nexus Progress Stepper for Go Deeper phase visualization with metadata cards and topic selector |
-| `src/renderer/components/GoDeepTopicSelector.tsx`       | Interactive checkbox component for selecting expansion topics during Go Deeper |
+| `src/renderer/components/MessageInput.tsx`              | Message text input, mode/model selectors, send/cancel controls               |
+| `src/renderer/components/CreateProgress.tsx`            | Create Mode progress stepper with phase visualization                        |
+| `src/renderer/components/TabBar.tsx`                    | File tabs with AI attachment context menu                                    |
+| `src/renderer/components/CodeBlock.tsx`                 | Syntax-highlighted code blocks using PrismLight (react-syntax-highlighter)   |
 | `src/renderer/components/DiffView.tsx`                  | Dedicated diff tab view with unified inline diff rendering                   |
 | `src/renderer/components/DiffNavigationToolbar.tsx`     | Floating toolbar for navigating and resolving diff hunks                     |
 | `src/renderer/components/DiffHunkControl.tsx`           | Per-hunk inline accept/reject buttons                                        |
-| `src/renderer/hooks/useAIChat.ts`                       | Chat state management, message sending, provider/model loading               |
-| `src/renderer/hooks/useAIProviderCache.ts`              | App-level provider status and model cache (shared across components)         |
+| `src/renderer/hooks/useAIChat.ts`                       | Provider/model loading and selection management                              |
+| `src/renderer/hooks/useAIAsk.ts`                        | Ask mode stateless Q&A logic                                                 |
 | `src/renderer/hooks/useAIDiffEdit.ts`                   | Edit mode logic, diff computation, opens diff tab                            |
-| `src/renderer/hooks/useAIResearch.ts`                   | Research mode logic, two-step inference + research, opens file tab           |
-| `src/renderer/hooks/useAIGoDeeper.ts`                   | Go Deeper orchestration: analysis, expansion batches, integration, versioning |
-| `src/renderer/hooks/useAIPlan.ts`                       | Plan Mode orchestration: scoping, web research, plan generation, naming      |
-| `src/renderer/components/PlanProgress.tsx`              | Plan Progress Stepper for plan phase visualization                           |
-| `src/renderer/hooks/useEditLoadingMessage.ts`           | Typewriter-animated loading messages                                         |
-| `src/renderer/utils/extractDocumentTopics.ts`           | Extracts `##`/`###` headings from markdown for Go Deeper topic selection     |
+| `src/renderer/hooks/useAICreate.ts`                     | Create mode two-phase pipeline (generate + name)                             |
+| `src/renderer/hooks/useAIProviderCache.ts`              | App-level provider status and model cache (shared across components)         |
+| `src/renderer/hooks/useEditLoadingMessage.ts`           | Typewriter-animated loading messages for Edit mode                           |
 | `src/renderer/aiProviderModeRestrictions.ts`            | Defines which providers are restricted from which chat modes                 |
 | `src/renderer/contexts/AIProviderCacheContext.tsx`      | React context for sharing provider cache across the component tree           |
 | `src/renderer/utils/diffUtils.ts`                       | Diff computation utilities (line ending normalization, hunk building)        |
@@ -1011,16 +694,30 @@ Request cancellation uses `AbortController` instances tracked by unique request 
 - `isLoadingModelsFor(provider)` - Whether models are currently being fetched for a given provider
 - `invalidateModelsForProvider(provider)` - Clears cached models when a provider's enabled state changes
 
-**Chat State** (managed by `useAIChat` hook):
+**Model/Provider State** (managed by `useAIChat` hook):
 
-- `messages: AIMessage[]` - Full conversation history
-- `inputValue: string` - Current text input
-- `isLoading: boolean` - Whether a chat request is in progress
-- `error: string | null` - Current error message
-- `selectedProvider` - Active AI provider (one of `xai`, `claude`, `openai`, `gemini`)
-- `selectedModel` - Active AI model
-- `availableModels` - Models loaded for the current provider (cache-aware)
-- Provider auto-selection priority: saved provider → Claude → OpenAI → Gemini → xAI
+- `models: AIModelOption[]` - Available models across all configured providers
+- `selectedModel: string` - Currently selected model ID
+- `isLoadingModels: boolean` - Whether models are being fetched
+- `inputValue: string` - Current text input value
+- `getProviderForModel(modelId)` - Resolves the provider for a given model ID
+- Provider auto-selection priority: saved model → first available model
+
+**Ask State** (managed by `useAIAsk` hook):
+
+- `askMessages: AIMessage[]` - Q&A pairs for display (never sent to API)
+- `isAskLoading: boolean` - Whether an Ask request is in progress
+- `askError: string | null` - Current error message
+- Exposes: `submitAsk`, `cancelAsk`, `clearAsk`
+
+**Create State** (managed by `useAICreate` hook):
+
+- `isCreateLoading: boolean` - Whether a Create request is in progress
+- `createPhase: CreatePhase` - Current phase: `'creating'`, `'naming'`, `'complete'`, or `null`
+- `createComplete: boolean` - Whether the last Create run finished successfully
+- `createFileName: string | null` - Filename of the generated document
+- `createError: string | null` - Error message if Create failed
+- Exposes: `submitCreate`, `cancelCreate`, `dismissCreateProgress`
 
 **Diff State** (stored on diff tab's `IFile` entry):
 
@@ -1044,27 +741,17 @@ Diff state is no longer global — it lives on each diff tab's `IFile` object:
 
 - `useHasDiffTab(sourceFileId?)` - Returns `true` if any open file is a diff tab referencing the given source file (used to enforce read-only state on the source file)
 
-**Plan State** (managed by `useAIPlan` hook):
-
-- `isPlanLoading: boolean` — Whether a plan request is in progress
-- `planPhase: PlanPhase` — Current phase: `'scoping'`, `'researching'`, `'planning'`, `'naming'`, `'complete'`, or `null`
-- `planComplete: boolean` — Whether the last plan run finished successfully
-- `planFileName: string | null` — Filename of the generated plan document
-- `planError: string | null` — Error message if the plan failed
-- `planQuery: string | null` — The topic string from the user's last plan request (shown in the progress UI header)
-
 **Configuration State** (persisted in `config.json`):
 
 - `aiModels` - Per-provider model enable/disable flags (providers: `xai`, `claude`, `openai`, `gemini`)
-- `aiChatDocked` - Whether the chat panel is docked
 - `aiChatDockWidth` - Width of the docked chat panel
-- `aiChatMode` - Current AI chat mode (`'chat'`, `'edit'`, `'research'`, `'tech-research'`, or `'plan'`). Migrated from legacy `aiChatEditMode` boolean
-- `aiChatProvider` - Last selected AI provider
+- `aiChatMode` - Current AI chat mode (`'ask'`, `'edit'`, or `'create'`)
 - `aiChatModel` - Last selected AI model
 
 **Provider Mode Restrictions** (defined in `aiProviderModeRestrictions.ts`):
 
 - A static map defines which providers are restricted from which modes
 - Currently: xAI is restricted from `edit` mode only (structured output not yet available)
-- The UI disables restricted mode options and auto-resets to `chat` when switching to a restricted provider
+- The UI hides restricted model options from the model dropdown when a restricted mode is active
 - The send handler also enforces restrictions at runtime as a safety net
+- When switching models, if the new model's provider is restricted from the current mode, the mode automatically resets to `ask`

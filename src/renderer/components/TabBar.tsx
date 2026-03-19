@@ -10,8 +10,6 @@ import {
     FileDiffIcon,
     PlusIcon,
     MinusIcon,
-    VisibilityIcon,
-    VisibilityOffIcon,
     CopyIcon,
     ClipboardCopyIcon,
     SaveAsIcon,
@@ -30,7 +28,9 @@ const TabContainer = styled(Box)(({ theme }) => ({
 const StyledTab = styled(Tab)(({ theme }) => ({
     textTransform: 'none',
     minHeight: 40,
-    padding: '6px 12px',
+    minWidth: 0,
+    maxWidth: 260,
+    padding: '6px 10px',
     '&.Mui-selected': {
         backgroundColor: theme.palette.action.selected,
     },
@@ -40,10 +40,16 @@ const TabContent = styled(Box)({
     display: 'flex',
     alignItems: 'center',
     gap: 4,
+    overflow: 'hidden',
+    width: '100%',
 });
 
 const FileName = styled('span')({
     whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    minWidth: 0,
+    flex: 1,
 });
 
 const MeasureContainer = styled(Box)({
@@ -148,7 +154,7 @@ const FileTab = React.memo(function FileTab({ file, isActive }: FileTabProps) {
                         component="span"
                         size="small"
                         onClick={handleToggleViewMode}
-                        sx={{ padding: 0.5 }}
+                        sx={{ padding: 0.5, flexShrink: 0 }}
                     >
                         {file.viewMode === 'edit' ? (
                             <CodeIcon size={16} />
@@ -163,7 +169,7 @@ const FileTab = React.memo(function FileTab({ file, isActive }: FileTabProps) {
                     component="span"
                     size="small"
                     onClick={handleClose}
-                    sx={{ padding: 0.5 }}
+                    sx={{ padding: 0.5, flexShrink: 0 }}
                 >
                     <CloseIcon size={16} />
                 </IconButton>
@@ -176,10 +182,9 @@ const FileTab = React.memo(function FileTab({ file, isActive }: FileTabProps) {
 interface TabBarProps {
     attachedFiles: AttachedFile[];
     onToggleFileAttachment: (file: IFile) => void;
-    onToggleContextDoc: (filePath: string) => void;
 }
 
-export function TabBar({ attachedFiles, onToggleFileAttachment, onToggleContextDoc }: TabBarProps) {
+export function TabBar({ attachedFiles, onToggleFileAttachment }: TabBarProps) {
     const state = useEditorState();
     const dispatch = useEditorDispatch();
     const [draggedIndex, setDraggedIndex] = React.useState<number | null>(null);
@@ -298,15 +303,6 @@ export function TabBar({ attachedFiles, onToggleFileAttachment, onToggleContextD
         setContextMenu(null);
     }, [contextMenu, state.openFiles, onToggleFileAttachment]);
 
-    const handleContextDocToggleClick = useCallback(() => {
-        if (contextMenu) {
-            const file = state.openFiles.find(f => f.id === contextMenu.fileId);
-            if (file?.path) {
-                onToggleContextDoc(file.path);
-            }
-        }
-        setContextMenu(null);
-    }, [contextMenu, state.openFiles, onToggleContextDoc]);
 
     const handleRenameDialogClose = useCallback(() => {
         setRenameDialog({ open: false, fileId: '', currentName: '' });
@@ -363,9 +359,7 @@ export function TabBar({ attachedFiles, onToggleFileAttachment, onToggleContextD
     const contextAttachedEntry = contextFile?.path
         ? attachedFiles.find(af => af.path === contextFile.path)
         : undefined;
-    const isContextFileContextDoc = contextAttachedEntry?.isContextDoc === true;
-    const isContextFileContextDocEnabled = contextAttachedEntry?.enabled !== false;
-    const isContextFileManuallyAttached = contextAttachedEntry !== undefined && !isContextFileContextDoc;
+    const isContextFileAttached = contextAttachedEntry !== undefined;
 
     const renderTab = (file: IFile, globalIndex: number) => (
         <StyledTab
@@ -458,31 +452,17 @@ export function TabBar({ attachedFiles, onToggleFileAttachment, onToggleContextD
                     <SaveAsIcon size={18} sx={{ mr: 1 }} />
                     Save As
                 </MenuItem>
-                {isContextFileContextDoc ? (
-                    <MenuItem
-                        onClick={handleContextDocToggleClick}
-                        disabled={!contextFile?.path || contextFile?.viewMode === 'diff'}
-                    >
-                        {isContextFileContextDocEnabled ? (
-                            <VisibilityIcon fontSize="small" sx={{ mr: 1, color: 'primary.main' }} />
-                        ) : (
-                            <VisibilityOffIcon fontSize="small" sx={{ mr: 1, color: 'text.disabled' }} />
-                        )}
-                        {isContextFileContextDocEnabled ? `Hide "${contextFile?.name}" from AI` : `Show "${contextFile?.name}" to AI`}
-                    </MenuItem>
-                ) : (
-                    <MenuItem
-                        onClick={handleAttachToggleClick}
-                        disabled={!contextFile?.path || contextFile?.viewMode === 'diff'}
-                    >
-                        {isContextFileManuallyAttached ? (
-                            <MinusIcon size={18} sx={{ mr: 1, color: 'error.main' }} />
-                        ) : (
-                            <PlusIcon size={18} sx={{ mr: 1, color: 'success.main' }} />
-                        )}
-                        {isContextFileManuallyAttached ? `Remove '${contextFile?.name}' from Nexus AI` : `Attach '${contextFile?.name}' to Nexus AI`}
-                    </MenuItem>
-                )}
+                <MenuItem
+                    onClick={handleAttachToggleClick}
+                    disabled={!contextFile?.path || contextFile?.viewMode === 'diff'}
+                >
+                    {isContextFileAttached ? (
+                        <MinusIcon size={18} sx={{ mr: 1, color: 'error.main' }} />
+                    ) : (
+                        <PlusIcon size={18} sx={{ mr: 1, color: 'success.main' }} />
+                    )}
+                    {isContextFileAttached ? `Remove '${contextFile?.name}' from Nexus AI` : `Attach '${contextFile?.name}' to Nexus AI`}
+                </MenuItem>
             </Menu>
             <Dialog open={renameDialog.open} onClose={handleRenameDialogClose}>
                 <DialogTitle>Rename File</DialogTitle>

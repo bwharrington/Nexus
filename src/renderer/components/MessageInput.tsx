@@ -1,12 +1,11 @@
 import React, { useCallback, useState } from 'react';
 import { Box, TextField, Button, IconButton, CircularProgress, styled, Select, MenuItem, FormControl, ListSubheader, Divider } from '@mui/material';
-import { AttachFileIcon, SendIcon, EditIcon, ResearchIcon, PlanIcon, CreateIcon } from './AppIcons';
+import { AttachFileIcon, SendIcon, EditIcon, CreateIcon } from './AppIcons';
 import { AttachFilePopover } from './AttachFilePopover';
 import type { AttachedFile } from './FileAttachmentsList';
 import type { AIChatMode } from '../types/global';
 import type { IFile } from '../types';
 import type { AIModelOption } from '../hooks/useAIChat';
-import type { GoDeepDepthLevel } from '../hooks/useAIGoDeeper';
 import { isProviderRestrictedFromMode } from '../aiProviderModeRestrictions';
 
 const InputContainer = styled(Box)(({ theme }) => ({
@@ -52,23 +51,17 @@ interface MessageInputProps {
     models: AIModelOption[];
     selectedModel: string;
     isLoadingModels: boolean;
-    isLoading: boolean;
+    isAskLoading: boolean;
     isEditLoading: boolean;
-    isResearchLoading: boolean;
-    isTechResearchLoading: boolean;
-    isPlanLoading: boolean;
     isCreateLoading: boolean;
     hasDiffTab: boolean;
     hasActiveRequest: boolean;
     openFiles: IFile[];
     attachedFiles: AttachedFile[];
-    researchDepthLevel?: GoDeepDepthLevel;
     onModeChange: (mode: AIChatMode) => void;
     onModelChange: (model: string) => void;
-    onResearchDepthLevelChange?: (level: GoDeepDepthLevel) => void;
     onAttachFromDisk: () => void;
     onToggleFileAttachment: (file: IFile) => void;
-    onToggleContextDoc: (filePath: string) => void;
     onInputChange: (value: string) => void;
     onSend: () => void;
     onCancel: () => void;
@@ -82,23 +75,17 @@ export function MessageInput({
     models,
     selectedModel,
     isLoadingModels,
-    isLoading,
+    isAskLoading,
     isEditLoading,
-    isResearchLoading,
-    isTechResearchLoading,
-    isPlanLoading,
     isCreateLoading,
     hasDiffTab,
     hasActiveRequest,
     openFiles,
     attachedFiles,
-    researchDepthLevel = 'practitioner',
     onModeChange,
     onModelChange,
-    onResearchDepthLevelChange,
     onAttachFromDisk,
     onToggleFileAttachment,
-    onToggleContextDoc,
     onInputChange,
     onSend,
     onCancel,
@@ -193,17 +180,13 @@ export function MessageInput({
                 maxRows={4}
                 size="small"
                 placeholder={
-                    mode === 'edit'
-                        ? "Describe the changes you want... (e.g., 'Add a table of contents')"
-                        : mode === 'research'
-                            ? "Enter a research topic... (e.g., 'Vector search in production')"
-                            : mode === 'techresearch'
-                                ? "Enter any Software Engineering topic for a deep-dive (e.g. How to use React, Configuring a Hasura API, C Memory Management)"
-                                : mode === 'plan'
-                                    ? "Describe what you want to plan... (e.g., 'Migrate our REST API to GraphQL', 'Build a mobile MVP')"
-                                    : mode === 'create'
-                                        ? "Describe what you want to create... (e.g., 'A blog post about React hooks', 'A project README')"
-                                        : "Type a message... (Enter to send, Shift+Enter for newline)"
+                    mode === 'ask'
+                        ? "Ask anything... (each question is independent)"
+                        : mode === 'edit'
+                            ? "Describe the changes you want... (e.g., 'Add a table of contents')"
+                            : mode === 'create'
+                                ? "Describe what you want to create... (e.g., 'A blog post about React hooks', 'A project README')"
+                                : "Type a message... (Enter to send, Shift+Enter for newline)"
                 }
                 value={inputValue}
                 onChange={(e) => {
@@ -230,10 +213,8 @@ export function MessageInput({
                             disabled={hasDiffTab || hasActiveRequest}
                             sx={COMPACT_SELECT_SX}
                         >
-                            <MenuItem value="chat" sx={{ fontSize: '0.75rem' }}>Ask</MenuItem>
+                            <MenuItem value="ask" sx={{ fontSize: '0.75rem' }}>Ask</MenuItem>
                             <MenuItem value="edit" sx={{ fontSize: '0.75rem' }}>Edit</MenuItem>
-                            {/* Research and Tech Research modes are hidden for now but code is retained */}
-                            <MenuItem value="plan" sx={{ fontSize: '0.75rem' }}>Plan</MenuItem>
                             <MenuItem value="create" sx={{ fontSize: '0.75rem' }}>Create</MenuItem>
                         </Select>
                     </FormControl>
@@ -255,25 +236,10 @@ export function MessageInput({
                         </Select>
                     </FormControl>
 
-                    {mode === 'research' && onResearchDepthLevelChange && (
-                        <FormControl size="small" sx={{ minWidth: 110, flexShrink: 0 }}>
-                            <Select
-                                value={researchDepthLevel}
-                                onChange={(e) => onResearchDepthLevelChange(e.target.value as GoDeepDepthLevel)}
-                                disabled={isResearchLoading}
-                                sx={COMPACT_SELECT_SX}
-                            >
-                                <MenuItem value="beginner" sx={{ fontSize: '0.75rem' }}>Beginner</MenuItem>
-                                <MenuItem value="practitioner" sx={{ fontSize: '0.75rem' }}>Practitioner</MenuItem>
-                                <MenuItem value="expert" sx={{ fontSize: '0.75rem' }}>Expert</MenuItem>
-                            </Select>
-                        </FormControl>
-                    )}
-
                     <IconButton
                         size="small"
                         onClick={handleAttachClick}
-                        disabled={isLoading}
+                        disabled={hasActiveRequest}
                         title="Attach files"
                         sx={{ color: 'text.secondary' }}
                     >
@@ -296,19 +262,13 @@ export function MessageInput({
                         size="small"
                         onClick={onSend}
                         disabled={!inputValue.trim() || hasActiveRequest || hasDiffTab}
-                        color={mode === 'edit' ? 'success' : mode === 'research' ? 'info' : mode === 'techresearch' ? 'secondary' : mode === 'plan' ? 'warning' : mode === 'create' ? 'secondary' : 'primary'}
+                        color={mode === 'edit' ? 'success' : mode === 'create' ? 'secondary' : 'primary'}
                         sx={{ minWidth: 44, px: 1.5, flexShrink: 0 }}
                     >
-                        {(isEditLoading || isResearchLoading || isTechResearchLoading || isPlanLoading || isCreateLoading) ? (
+                        {(isAskLoading || isEditLoading || isCreateLoading) ? (
                             <CircularProgress size={18} color="inherit" />
                         ) : mode === 'edit' ? (
                             <EditIcon fontSize="small" />
-                        ) : mode === 'research' ? (
-                            <ResearchIcon fontSize="small" />
-                        ) : mode === 'techresearch' ? (
-                            <ResearchIcon fontSize="small" />
-                        ) : mode === 'plan' ? (
-                            <PlanIcon fontSize="small" />
                         ) : mode === 'create' ? (
                             <CreateIcon fontSize="small" />
                         ) : (
@@ -324,7 +284,6 @@ export function MessageInput({
                 attachedFiles={attachedFiles}
                 onAttachFromDisk={onAttachFromDisk}
                 onToggleFileAttachment={onToggleFileAttachment}
-                onToggleContextDoc={onToggleContextDoc}
             />
         </InputContainer>
     );

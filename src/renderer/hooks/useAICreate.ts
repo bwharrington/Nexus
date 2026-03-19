@@ -88,11 +88,10 @@ function buildFileContextFromOpenFiles(
     attachedFiles: AttachedFile[],
     openFiles: IFile[],
 ): string {
-    const enabled = attachedFiles.filter(f => f.enabled !== false);
-    if (enabled.length === 0) return '';
+    if (attachedFiles.length === 0) return '';
 
     const parts: string[] = [];
-    for (const af of enabled) {
+    for (const af of attachedFiles) {
         const openFile = openFiles.find(f => f.path === af.path);
         if (openFile && openFile.content.trim()) {
             parts.push(`[File: ${af.name}]\n${openFile.content}`);

@@ -8,8 +8,8 @@ import {
     FolderOpenIcon,
     CopyIcon,
     ClipboardCopyIcon,
-    AttachFileIcon,
-    VisibilityOffIcon,
+    PlusIcon,
+    MinusIcon,
 } from './AppIcons';
 
 interface ContextMenuPosition {
@@ -80,7 +80,7 @@ export const FileTreeContextMenu = React.memo(function FileTreeContextMenu({
             <Divider />
             <MenuItem onClick={() => { onRevealInExplorer(); onClose(); }}>
                 <ListItemIcon><FolderOpenIcon fontSize="small" /></ListItemIcon>
-                <ListItemText>Reveal in Explorer</ListItemText>
+                <ListItemText>Open File Location</ListItemText>
             </MenuItem>
             <MenuItem onClick={() => { onCopyPath(); onClose(); }}>
                 <ListItemIcon><ClipboardCopyIcon fontSize="small" /></ListItemIcon>
@@ -95,12 +95,12 @@ export const FileTreeContextMenu = React.memo(function FileTreeContextMenu({
                 <MenuItem key="nexus-toggle" onClick={() => { onToggleNexusAttachment(); onClose(); }}>
                     <ListItemIcon>
                         {isAttachedToNexus
-                            ? <VisibilityOffIcon fontSize="small" />
-                            : <AttachFileIcon fontSize="small" />}
+                            ? <MinusIcon fontSize="small" sx={{ color: 'error.main' }} />
+                            : <PlusIcon fontSize="small" sx={{ color: 'success.main' }} />}
                     </ListItemIcon>
                     <ListItemText>
                         {isAttachedToNexus
-                            ? `Hide '${itemName}' from Nexus AI`
+                            ? `Remove '${itemName}' from Nexus AI`
                             : `Attach '${itemName}' to Nexus AI`}
                     </ListItemText>
                 </MenuItem>,

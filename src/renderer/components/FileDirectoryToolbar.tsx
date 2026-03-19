@@ -8,6 +8,8 @@ import {
     ChevronsDownUpIcon,
     ChevronsUpDownIcon,
     CloseIcon,
+    VisibilityIcon,
+    VisibilityOffIcon,
 } from './AppIcons';
 import type { FileDirectorySortOrder } from '../types';
 
@@ -16,10 +18,12 @@ interface FileDirectoryToolbarProps {
     folderPath: string;
     sortOrder: FileDirectorySortOrder;
     isAllExpanded: boolean;
+    showAllFiles: boolean;
     onNewFile: () => void;
     onNewFolder: () => void;
     onToggleSort: () => void;
     onToggleExpandCollapse: () => void;
+    onToggleShowAllFiles: () => void;
     onCloseFolder: () => void;
 }
 
@@ -53,10 +57,12 @@ export const FileDirectoryToolbar = React.memo(function FileDirectoryToolbar({
     folderPath,
     sortOrder,
     isAllExpanded,
+    showAllFiles,
     onNewFile,
     onNewFolder,
     onToggleSort,
     onToggleExpandCollapse,
+    onToggleShowAllFiles,
     onCloseFolder,
 }: FileDirectoryToolbarProps) {
     const [confirmOpen, setConfirmOpen] = useState(false);
@@ -102,6 +108,13 @@ export const FileDirectoryToolbar = React.memo(function FileDirectoryToolbar({
                         {isAllExpanded
                             ? <ChevronsDownUpIcon fontSize="small" />
                             : <ChevronsUpDownIcon fontSize="small" />}
+                    </ToolbarButton>
+                </Tooltip>
+                <Tooltip title={showAllFiles ? 'Show Supported Files Only' : 'Show All Files'}>
+                    <ToolbarButton onClick={onToggleShowAllFiles} size="small">
+                        {showAllFiles
+                            ? <VisibilityIcon fontSize="small" />
+                            : <VisibilityOffIcon fontSize="small" />}
                     </ToolbarButton>
                 </Tooltip>
                 <Tooltip title="Close Folder">

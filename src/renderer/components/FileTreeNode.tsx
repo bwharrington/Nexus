@@ -2,6 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Box, Typography, styled, InputBase } from '@mui/material';
 import { ChevronRightIcon, FolderClosedIcon, FolderOpenIcon, DescriptionIcon } from './AppIcons';
 import { FileTreeContextMenu } from './FileTreeContextMenu';
+import { MultiSelectContextMenu } from './MultiSelectContextMenu';
 import type { DirectoryNode, FileDirectorySortOrder } from '../types';
 
 interface FileTreeNodeProps {
@@ -10,11 +11,12 @@ interface FileTreeNodeProps {
     isExpanded: boolean;
     expandedPaths: Set<string>;
     sortOrder: FileDirectorySortOrder;
-    activeFilePath: string | null;
+    selectedPaths: Set<string>;
     isRenaming: boolean;
     attachedFilePaths: Set<string>;
     onToggle: (path: string) => void;
     onFileClick: (filePath: string) => void;
+    onFileSelect: (filePath: string, ctrlKey: boolean, shiftKey: boolean) => void;
     onNewFile: (parentPath: string) => void;
     onNewFolder: (parentPath: string) => void;
     onMoveItem: (sourcePath: string, destDirPath: string) => void;
@@ -23,6 +25,9 @@ interface FileTreeNodeProps {
     onStartRename: (path: string) => void;
     onCancelRename: () => void;
     onToggleNexusAttachment: (filePath: string, fileName: string) => void;
+    onOpenAllSelected: () => void;
+    onAttachAllSelected: () => void;
+    onDeleteAllSelected: () => void;
     renamingPath: string | null;
 }
 
@@ -90,16 +95,20 @@ const RenameInput = styled(InputBase)(({ theme }) => ({
     borderRadius: 2,
 }));
 
-function sortChildren(children: DirectoryNode[], sortOrder: FileDirectorySortOrder): DirectoryNode[] {
+export function sortChildren(children: DirectoryNode[], sortOrder: FileDirectorySortOrder): DirectoryNode[] {
     const folders = children.filter(c => c.isDirectory);
     const files = children.filter(c => !c.isDirectory);
 
-    const sorted = [...files].sort((a, b) => {
+    const sortedFolders = [...folders].sort((a, b) =>
+        a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+    );
+
+    const sortedFiles = [...files].sort((a, b) => {
         const cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
         return sortOrder === 'asc' ? cmp : -cmp;
     });
 
-    return [...folders, ...sorted];
+    return [...sortedFolders, ...sortedFiles];
 }
 
 export const FileTreeNode = React.memo(function FileTreeNode({
@@ -108,11 +117,12 @@ export const FileTreeNode = React.memo(function FileTreeNode({
     isExpanded,
     expandedPaths,
     sortOrder,
-    activeFilePath,
+    selectedPaths,
     isRenaming,
     attachedFilePaths,
     onToggle,
     onFileClick,
+    onFileSelect,
     onNewFile,
     onNewFolder,
     onMoveItem,
@@ -121,6 +131,9 @@ export const FileTreeNode = React.memo(function FileTreeNode({
     onStartRename,
     onCancelRename,
     onToggleNexusAttachment,
+    onOpenAllSelected,
+    onAttachAllSelected,
+    onDeleteAllSelected,
     renamingPath,
 }: FileTreeNodeProps) {
     const [contextMenu, setContextMenu] = useState<ContextMenuPosition | null>(null);
@@ -146,11 +159,13 @@ export const FileTreeNode = React.memo(function FileTreeNode({
         }
     }, [isRenaming, node.name, node.isDirectory]);
 
-    const handleClick = useCallback(() => {
+    const handleClick = useCallback((e: React.MouseEvent) => {
         if (node.isDirectory) {
             onToggle(node.path);
+        } else {
+            onFileSelect(node.path, e.ctrlKey || e.metaKey, e.shiftKey);
         }
-    }, [node.isDirectory, node.path, onToggle]);
+    }, [node.isDirectory, node.path, onToggle, onFileSelect]);
 
     const handleDoubleClick = useCallback(() => {
         if (!node.isDirectory) {
@@ -161,8 +176,12 @@ export const FileTreeNode = React.memo(function FileTreeNode({
     const handleContextMenu = useCallback((e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
+        // If right-clicking a file not in the current selection, select only it
+        if (!node.isDirectory && !selectedPaths.has(node.path)) {
+            onFileSelect(node.path, false, false);
+        }
         setContextMenu({ mouseX: e.clientX, mouseY: e.clientY });
-    }, []);
+    }, [node.isDirectory, node.path, selectedPaths, onFileSelect]);
 
     const handleCloseContextMenu = useCallback(() => {
         setContextMenu(null);
@@ -239,7 +258,8 @@ export const FileTreeNode = React.memo(function FileTreeNode({
         onToggleNexusAttachment(node.path, node.name);
     }, [node.path, node.name, onToggleNexusAttachment]);
 
-    const isActive = !node.isDirectory && node.path === activeFilePath;
+    const isActive = !node.isDirectory && selectedPaths.has(node.path);
+    const isMultiSelected = selectedPaths.size > 1 && selectedPaths.has(node.path);
     const isAttachedToNexus = !node.isDirectory && attachedFilePaths.has(node.path);
     const paddingLeft = 8 + depth * 16;
     const sortedChildren = node.isDirectory && node.children
@@ -310,11 +330,12 @@ export const FileTreeNode = React.memo(function FileTreeNode({
                     isExpanded={expandedPaths.has(child.path)}
                     expandedPaths={expandedPaths}
                     sortOrder={sortOrder}
-                    activeFilePath={activeFilePath}
+                    selectedPaths={selectedPaths}
                     isRenaming={renamingPath === child.path}
                     attachedFilePaths={attachedFilePaths}
                     onToggle={onToggle}
                     onFileClick={onFileClick}
+                    onFileSelect={onFileSelect}
                     onNewFile={onNewFile}
                     onNewFolder={onNewFolder}
                     onMoveItem={onMoveItem}
@@ -323,26 +344,40 @@ export const FileTreeNode = React.memo(function FileTreeNode({
                     onStartRename={onStartRename}
                     onCancelRename={onCancelRename}
                     onToggleNexusAttachment={onToggleNexusAttachment}
+                    onOpenAllSelected={onOpenAllSelected}
+                    onAttachAllSelected={onAttachAllSelected}
+                    onDeleteAllSelected={onDeleteAllSelected}
                     renamingPath={renamingPath}
                 />
             ))}
 
-            <FileTreeContextMenu
-                position={contextMenu}
-                isDirectory={node.isDirectory}
-                itemPath={node.path}
-                itemName={node.name}
-                isAttachedToNexus={isAttachedToNexus}
-                onClose={handleCloseContextMenu}
-                onNewFile={() => onNewFile(node.path)}
-                onNewFolder={() => onNewFolder(node.path)}
-                onRename={() => onStartRename(node.path)}
-                onDelete={handleDelete}
-                onRevealInExplorer={handleRevealInExplorer}
-                onCopyPath={handleCopyPath}
-                onCopyName={handleCopyName}
-                onToggleNexusAttachment={handleToggleNexusAttachment}
-            />
+            {isMultiSelected ? (
+                <MultiSelectContextMenu
+                    position={contextMenu}
+                    selectedCount={selectedPaths.size}
+                    onClose={handleCloseContextMenu}
+                    onOpenAll={onOpenAllSelected}
+                    onAttachAll={onAttachAllSelected}
+                    onDeleteAll={onDeleteAllSelected}
+                />
+            ) : (
+                <FileTreeContextMenu
+                    position={contextMenu}
+                    isDirectory={node.isDirectory}
+                    itemPath={node.path}
+                    itemName={node.name}
+                    isAttachedToNexus={isAttachedToNexus}
+                    onClose={handleCloseContextMenu}
+                    onNewFile={() => onNewFile(node.path)}
+                    onNewFolder={() => onNewFolder(node.path)}
+                    onRename={() => onStartRename(node.path)}
+                    onDelete={handleDelete}
+                    onRevealInExplorer={handleRevealInExplorer}
+                    onCopyPath={handleCopyPath}
+                    onCopyName={handleCopyName}
+                    onToggleNexusAttachment={handleToggleNexusAttachment}
+                />
+            )}
         </>
     );
 });

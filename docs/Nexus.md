@@ -26,13 +26,10 @@ Nexus is a modern, feature-rich Markdown editor built with Electron, React, and 
    - [Visual Configuration Menu](#visual-configuration-menu)
    - [Logging](#logging)
 4. [AI Features](#ai-features)
-   - [Nexus Assistant](#ai-chat-assistant)
+   - [Nexus Assistant](#nexus-assistant)
+   - [Ask Mode](#ask-mode)
    - [AI Edit Mode](#ai-edit-mode)
-   - [AI Inline Edit Window](#ai-inline-edit-window)
-   - [AI Research Mode](#ai-research-mode)
-   - [Go Deeper Mode](#go-deeper-mode)
-   - [Tech Research Mode](#tech-research-mode)
-   - [Plan Mode](#plan-mode)
+   - [Create Mode](#create-mode)
    - [AI Provider Configuration](#ai-provider-configuration)
 5. [Keyboard Shortcuts](#keyboard-shortcuts)
 6. [Supported File Formats](#supported-file-formats)
@@ -414,6 +411,7 @@ Securely manage API keys for AI providers:
 | **xAI (Grok)**       | Set, clear, or test API key |
 | **Anthropic Claude** | Set, clear, or test API key |
 | **OpenAI**           | Set, clear, or test API key |
+| **Google Gemini**    | Set, clear, or test API key |
 
 - API keys are stored securely using the operating system's credential storage
 - Password-masked input fields protect key visibility
@@ -482,31 +480,40 @@ Nexus includes integrated AI capabilities to assist with writing and editing you
 
 ### Nexus Assistant
 
-Access the Nexus Assistant by clicking the **AI** button in the toolbar. The chat assistant provides a conversational interface for getting help with your documents.
+Access the Nexus Assistant by clicking the **AI** button in the toolbar (`Ctrl+Shift+A`). The chat panel is docked to the right side of the editor and supports three modes: **Ask**, **Edit**, and **Create**.
 
 #### Features
 
 - **Multi-provider support** - Choose between Claude, OpenAI, Google Gemini, or xAI
-- **Dynamic model selection** - Available models are fetched from each provider
-- **File attachments** - Attach files for context in your conversations
-- **Context documents** - Add reference files that persist across messages
-- **Persistent chat history** - Conversations are maintained during your session
-- **Draggable dialog** - Position the chat window anywhere on screen
-- **Resizable interface** - Adjust the dialog size to your preference
+- **Dynamic model selection** - Available models are fetched from each provider and grouped by provider in a dropdown
+- **Three AI modes** - Ask (stateless Q&A), Edit (document modification with diff review), Create (generate new documents)
+- **File attachments** - Attach files for context in Ask and Create mode requests
+- **Docked panel** - Resizable panel docked to the right side of the editor
+- **Persistent session** - Q&A history, mode, and model selection are maintained during your session
 
-#### Using the Chat Assistant
+#### Opening the Nexus Panel
 
-1. Click the **AI** button in the toolbar to open the chat dialog
-2. Select your preferred AI provider from the dropdown
-3. Choose a model from the available options
-4. Type your question or request in the input field
-5. Press **Enter** or click **Send** to submit
+1. Click the **AI** button in the toolbar or press `Ctrl+Shift+A`
+2. Choose a mode (**Ask**, **Edit**, or **Create**) from the mode dropdown
+3. Select a model from the model dropdown
+4. Type your message and press **Enter**
 
-#### Attaching Files
+---
 
-- Click the **attachment** icon to add files for context
-- Drag and drop files directly into the chat dialog
-- Toggle context documents on/off without removing them
+### Ask Mode
+
+Ask Mode is a **stateless Q&A** interface — every question is completely independent. Only the current question (plus any attached files) is sent to the AI. Previous Q&A pairs are shown in the panel for reference but are not included in subsequent requests.
+
+#### How to Use Ask Mode
+
+1. Select **Ask** from the mode dropdown
+2. Optionally attach files via the paperclip icon for additional context
+3. Type your question and press **Enter**
+4. The response appears as a chat bubble; attached files are cleared after sending
+
+> **Note:** Ask Mode is available with all four providers: Claude, OpenAI, Google Gemini, and xAI.
+
+---
 
 ### AI Edit Mode
 
@@ -514,15 +521,15 @@ AI Edit Mode allows you to make AI-powered edits directly to your document with 
 
 #### Enabling Edit Mode
 
-1. Open the Nexus dialog
-2. Click the **pencil icon** next to the model selector to toggle Edit Mode
-3. The button turns green when Edit Mode is active
+1. Open the Nexus panel (`Ctrl+Shift+A`)
+2. Select **Edit** from the mode dropdown
+3. The send button turns green with an edit icon
 
-> **Note:** Edit Mode is available with Claude, OpenAI, and Google Gemini providers. xAI shows an "Edit N/A" badge indicating it doesn't support the structured output required for edit mode.
+> **Note:** Edit Mode is available with Claude, OpenAI, and Google Gemini providers. xAI models are hidden from the model dropdown when Edit mode is selected.
 
 #### Making Edits
 
-1. With Edit Mode enabled, describe the changes you want in natural language
+1. With Edit Mode selected, describe the changes you want in natural language
 2. Examples:
    - "Add a table of contents at the beginning"
    - "Fix the grammar in paragraph 3"
@@ -561,206 +568,22 @@ When the AI returns edits, a **dedicated diff tab** opens in the tab bar (simila
 | `Ctrl+Shift+A`       | Accept all changes             |
 | `Escape`             | Cancel and discard all changes |
 
-### AI Research Mode
-
-Research Mode generates comprehensive, structured research reports on any topic directly inside Nexus.
-
-#### Activating Research Mode
-
-1. Open the Nexus dialog (`Ctrl+Shift+A`)
-2. Select **Research** from the Mode dropdown
-3. Type a research topic in the input field and press **Enter**
-
-#### How It Works
-
-Research Mode uses a multi-phase AI pipeline:
-
-1. **Inference** — A quick AI call identifies the target audience, relevant fields, and deep-dive topics for the research
-2. **Research** — The inferred context is used to generate a comprehensive, structured report
-3. **Deepening** — Automatic follow-up calls expand technical sections in batches for greater depth
-4. **Naming** — A descriptive filename is generated for the new tab
-
-While the pipeline runs, the **Nexus Aura** (a rotating blue-to-gold gradient ring around the panel border) indicates active processing, and the **Nexus Progress Stepper** displays live phase progress in the messages area.
-
-The final report is opened as a new markdown file tab in **preview mode**, ready to read or save.
-
-#### Research Output Structure
-
-Reports follow a standardized format:
-- Executive Summary
-- Historical Evolution
-- Current State
-- Key Debates & Risks
-- Engineering & Implementation Guide (with deep-dive sections)
-- Future Horizons
-- Actionable Playbook
-- Sources & Rigor
-- Extended Technical Deep Dive (appended from deepening calls)
-
-> **Note:** Research Mode is available with all four providers: Claude, OpenAI, Google Gemini, and xAI.
-
 ---
 
-### Go Deeper Mode
+### Create Mode
 
-Go Deeper enriches an **existing** research report by expanding selected topics with exhaustive new content and merging it back into a versioned document.
+Create Mode generates a **complete new Markdown document** from a description and opens it as a new editor tab.
 
-#### Activating Go Deeper
+#### How to Use Create Mode
 
-After a Research Mode run completes, a **"Go Deeper"** button appears in the Nexus panel. Clicking it starts the Go Deeper workflow on the active file.
+1. Open the Nexus panel (`Ctrl+Shift+A`)
+2. Select **Create** from the mode dropdown
+3. Optionally attach files to provide context for the generated content
+4. Describe what you want to create (e.g., "A blog post about React hooks", "A project README", "A spec for a REST API") and press **Enter**
+5. The **Create Progress Stepper** shows live progress through two phases: Generating Content → Naming Document
+6. When complete, a new document tab opens in preview mode with an AI-generated filename
 
-#### How It Works
-
-Go Deeper runs a four-phase AI pipeline:
-
-1. **Analyzing Report** — The AI reads the full document and identifies the best expansion opportunities: new focus areas, high-value topics, suggested depth level, and a preview of planned additions
-2. **Select Topics** — The workflow pauses for user input. An interactive checklist shows:
-   - **AI-Suggested Topics** (pre-checked) — topics the AI identified during analysis
-   - **Document Topics** (unchecked) — headings extracted from the document's `##`/`###` hierarchy
-
-   Select any combination and click **"Continue"** to proceed.
-3. **Expanding Depth** — Selected topics are batched and sent to the AI for exhaustive addendum generation, covering latest developments, advanced internals, production edge cases, code examples, and benchmarks. A batch counter shows progress (e.g., "2/4").
-4. **Integrating Content** — Addendums are merged into the document with a generated changelog section
-5. **Finalizing Document** — The file is renamed with a version suffix (`v2`, `v3`, etc.) and updated in the editor
-
-Throughout the pipeline the **Nexus Aura** and **Nexus Progress Stepper** provide live visual feedback identical to Research Mode.
-
-#### Go Deeper Output
-
-- The **active file is updated in-place** — no new tab is created
-- The filename is versioned: `Report Title.md` → `Report Title v2.md`
-- Document structure: original content + deep-dive addendums + changelog, separated by `---` dividers
-- Save the result manually with `Ctrl+S`
-
-> **Note:** Go Deeper is available with all four providers: Claude, OpenAI, Google Gemini, and xAI.
-
----
-
-### Tech Research Mode
-
-Tech Research generates deep, structured technical reference documents on any software engineering topic — covering core mechanics, implementation patterns, pitfalls, testing, security, architecture, and more — and opens the result as a new document tab.
-
-#### Activating Tech Research
-
-1. Open the Nexus dialog (`Ctrl+Shift+A`)
-2. Select **Tech Research** from the Mode dropdown
-3. Type any software engineering topic (e.g., "How to use React", "C Memory Management", "Configuring a Hasura API") and press **Enter**
-
-#### How It Works
-
-Tech Research runs a four-phase AI pipeline:
-
-1. **Scoping** — A quick call analyzes the topic and produces a research blueprint: primary sources, secondary sources, coverage areas, and key terms
-2. **Extraction** — Reference material is extracted per the blueprint, producing concise bullet-point summaries for each coverage area
-3. **Analysis** — A deep-dive document is written across 13 standard sections (Why It Exists, Core Mechanics, Implementation, Pitfalls, Performance, Testing, Security, Debugging, Architecture, Advantages, Ecosystem, Community, etc.)
-4. **Assembly** — The sections are assembled into a final polished document, curated resource links are generated and appended, and a descriptive kebab-case filename is derived
-
-Throughout the pipeline the **Nexus Aura** and **Tech Research Progress Stepper** provide live visual feedback with per-phase elapsed timers.
-
-#### Tech Research Output
-
-- Opens as a **new markdown file tab** in preview mode, ready to read or save
-- Filename is AI-generated and descriptive (e.g., `react-useeffect-deep-dive.md`)
-- Includes a **Curated Resources** section with annotated links
-- Footer credits depth level: *Generated by Tech Research · Depth: Practitioner*
-- Save to disk with `Ctrl+S` or **Save As**
-
-#### Depth Levels
-
-Tech Research inherits the same depth selector as Research Mode and Go Deeper:
-
-| Level | Focus |
-|---|---|
-| **Beginner** | Clear explanations, defined terms, simple code examples |
-| **Practitioner** | Practical patterns, working code, common pitfalls |
-| **Expert** | Internals, trade-offs, production-scale concerns |
-
-> **Note:** Tech Research is available with all four providers: Claude, OpenAI, Google Gemini, and xAI.
-
----
-
-### AI Inline Edit Window
-
-The AI Inline Edit Window provides a streamlined interface for making AI-powered edits directly within your document. It combines the Nexus dialog with an inline editing workflow, allowing you to describe changes in natural language and review them visually in the editor.
-
-#### Opening the Inline Edit Window
-
-1. Press `Ctrl+Shift+A` or click the **AI** button (robot icon) in the toolbar
-2. The AI dialog opens as a floating, draggable window overlaying the editor
-3. Click the **pencil icon** next to the model selector to activate Edit Mode
-4. The button turns green, and the input placeholder changes to "Describe the changes you want..."
-
-#### Window Behavior
-
-| Feature                       | Description                                                    |
-| ----------------------------- | -------------------------------------------------------------- |
-| **Draggable**           | Reposition the window by dragging the header                   |
-| **Resizable**           | Drag the bottom-right corner to resize                         |
-| **Collapsible**         | Minimize the window when not actively editing                  |
-| **Focus opacity**       | Window is fully opaque when focused, semi-transparent when not |
-| **Persistent position** | Window maintains its position while you work                   |
-
-#### Inline Edit Workflow
-
-1. **Select context** - The current document is automatically attached as context
-2. **Describe changes** - Type a natural language description of the edits you want
-3. **Submit** - Press `Enter` or click the green **Edit** button to submit
-4. **Review** - A dedicated diff tab opens showing changes with:
-   - **Green highlights** for new content being added
-   - **Red strikethrough** for content being removed or replaced
-5. **Navigate and decide** - Use the diff navigation toolbar or keyboard shortcuts to accept or reject individual changes
-
-#### Edit Mode vs. Chat Mode
-
-| Aspect                     | Chat Mode                      | Edit Mode                          |
-| -------------------------- | ------------------------------ | ---------------------------------- |
-| **Purpose**          | Ask questions, get suggestions | Apply changes directly to document |
-| **Input prompt**     | "Type a message..."            | "Describe the changes you want..." |
-| **Send button**      | Blue with send icon            | Green with edit icon               |
-| **Result**           | Chat response in dialog        | Visual diff in the editor          |
-| **Provider support** | All providers                  | Claude, OpenAI, and Gemini         |
-
-> **Note:** Edit Mode is available with Claude, OpenAI, and Google Gemini providers. xAI displays an "Edit N/A" badge as it does not support the structured output required for inline edits.
-
-### Plan Mode
-
-Plan Mode generates a comprehensive, structured project plan for any task or initiative and opens the result as a new document tab.
-
-#### Activating Plan Mode
-
-1. Open the Nexus dialog (`Ctrl+Shift+A`)
-2. Select **Plan** from the Mode dropdown
-3. Describe what you want to plan (e.g., "Build a REST API with Node.js", "Migrate our database to PostgreSQL") and press **Enter**
-
-#### How It Works
-
-Plan Mode uses a four-phase AI pipeline:
-
-1. **Analyzing Request** — A quick call analyzes the request and produces a JSON blueprint: a goal summary, inferred constraints, major work streams, and suggested web search queries
-2. **Searching the Web** — If a Serper API key is configured in Settings, up to four web searches are run to gather real-world context (current best practices, tools, pricing, documentation). If no key is configured, this phase completes instantly
-3. **Generating Plan** — The blueprint and any web research are used to produce a detailed, structured plan document covering objective, scope, architecture, work breakdown (with task lists per work stream), dependencies, risk assessment, resources, and next steps
-4. **Naming Document** — A descriptive Title Case filename is generated for the new tab (e.g., `GraphQL Migration Plan.md`)
-
-Throughout the pipeline, the **Plan Progress Stepper** visualizes all four phases in the messages area with live typewriter-animated status messages, elapsed time badges, and a final "Plan Complete" indicator.
-
-#### Plan Output Structure
-
-Generated plans follow a standardized Markdown format:
-
-- **Objective** — What will be accomplished and why it matters
-- **Scope & Constraints** — Boundaries, limitations, and non-goals
-- **Architecture / Approach** — High-level strategy and key technical decisions
-- **Work Breakdown** — Per-work-stream task lists with effort estimates
-- **Dependencies & Critical Path** — Tasks that block other work and optimal sequencing
-- **Risk Assessment** — Table of risks with likelihood, impact, and mitigation strategies
-- **Resources & References** — Recommended tools, documentation links, and web research results
-- **Next Steps** — The 3–5 immediate actions to start execution
-
-#### Web Research Enhancement (Optional)
-
-If a Serper API key is configured under **AI API Keys** in Settings, Plan Mode automatically searches the web for current, practical context before generating the plan. This produces more accurate technology recommendations, up-to-date pricing estimates, and real-world implementation guidance. Without a Serper key, plans are generated purely from the AI's training data.
-
-> **Note:** Plan Mode is available with all four providers: Claude, OpenAI, Google Gemini, and xAI.
+> **Note:** Create Mode is available with all four providers: Claude, OpenAI, Google Gemini, and xAI.
 
 ---
 
@@ -770,12 +593,12 @@ Configure your AI providers by setting up API keys through the Settings dialog.
 
 #### Supported Providers
 
-| Provider                     | Models                                                      | Chat | Edit | Research | Go Deeper | Plan |
-| ---------------------------- | ----------------------------------------------------------- | ---- | ---- | -------- | --------- | ---- |
-| **Claude** (Anthropic) | Claude Opus 4.6, Claude Sonnet 4.6, Claude Haiku 4.5, etc. | Yes  | Yes  | Yes      | Yes       | Yes  |
-| **OpenAI**             | GPT-5, GPT-5 Mini, GPT-4o Latest, o3, o4 Mini, etc.        | Yes  | Yes  | Yes      | Yes       | Yes  |
-| **Google Gemini**      | Gemini 3 Pro Preview, Gemini 3 Flash Preview, etc.          | Yes  | Yes  | Yes      | Yes       | Yes  |
-| **xAI (Grok)**         | Grok 4, Grok 4.1, Grok 4.1 Reasoning, etc.                 | Yes  | No   | Yes      | Yes       | Yes  |
+| Provider                     | Models                                                      | Ask | Edit | Create |
+| ---------------------------- | ----------------------------------------------------------- | --- | ---- | ------ |
+| **Claude** (Anthropic) | Claude Opus 4.6, Claude Sonnet 4.6, Claude Haiku 4.5, etc. | Yes | Yes  | Yes    |
+| **OpenAI**             | GPT-5, GPT-5 Mini, GPT-4o Latest, o3, o4 Mini, etc.        | Yes | Yes  | Yes    |
+| **Google Gemini**      | Gemini 3 Pro Preview, Gemini 3 Flash Preview, etc.          | Yes | Yes  | Yes    |
+| **xAI (Grok)**         | Grok 4, Grok 4.1, Grok 4.1 Reasoning, etc.                 | Yes | No   | Yes    |
 
 #### Setting Up API Keys
 
@@ -975,11 +798,9 @@ src/
 │   │   ├── FileTreeContextMenu.tsx    # Right-click context menu for tree items
 │   │   ├── AIChatDialog.tsx    # AI chat dialog (orchestrator)
 │   │   ├── ChatMessages.tsx    # Chat message bubbles and rendering
-│   │   ├── ProviderSelector.tsx # Provider/model dropdowns
 │   │   ├── FileAttachmentsList.tsx # File attachment chips
-│   │   ├── MessageInput.tsx    # Chat input with send/edit controls
-│   │   ├── GoDeepProgress.tsx  # Nexus Progress Stepper for Go Deeper phases
-│   │   ├── GoDeepTopicSelector.tsx # Go Deeper topic selection UI
+│   │   ├── MessageInput.tsx    # Chat input with mode/model controls
+│   │   ├── CreateProgress.tsx  # Create mode progress stepper
 │   │   ├── DiffView.tsx        # Dedicated diff tab view
 │   │   ├── DiffNavigationToolbar.tsx  # Diff review controls
 │   │   ├── DiffHunkControl.tsx # Per-hunk accept/reject controls
@@ -998,10 +819,10 @@ src/
 │   │   ├── useFileDirectories.ts  # Multi-directory panel state management
 │   │   ├── useWindowTitle.ts
 │   │   ├── useExternalFileWatcher.ts  # External file change handling
-│   │   ├── useAIChat.ts        # AI chat state management
-│   │   ├── useAIDiffEdit.ts    # AI diff editing logic
-│   │   ├── useAIResearch.ts    # Research mode multi-phase pipeline
-│   │   ├── useAIGoDeeper.ts    # Go Deeper multi-phase pipeline
+│   │   ├── useAIChat.ts        # Provider/model loading and selection
+│   │   ├── useAIAsk.ts         # Ask mode stateless Q&A logic
+│   │   ├── useAIDiffEdit.ts    # Edit mode diff logic
+│   │   ├── useAICreate.ts      # Create mode two-phase pipeline
 │   │   ├── useEditLoadingMessage.ts  # Typewriter loading animations
 │   │   ├── useSettingsConfig.ts     # Settings configuration hook
 │   │   ├── useContentEditable.ts    # Content editable behavior
@@ -1013,7 +834,6 @@ src/
 │   │   ├── diffUtils.ts        # Diff computation and normalization
 │   │   ├── fileHelpers.ts      # File operation helpers
 │   │   ├── domUtils.ts         # DOM manipulation utilities
-│   │   ├── extractDocumentTopics.ts  # Heading extraction for Go Deeper
 │   │   └── pdfExport.tsx       # PDF export functionality
 │   │
 │   ├── types/             # TypeScript type definitions

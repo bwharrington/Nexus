@@ -3,19 +3,10 @@ import { Box, Typography, CircularProgress, styled, IconButton, Tooltip } from '
 import { CopyIcon, CheckIcon } from './AppIcons';
 import ReactMarkdown, { Components } from 'react-markdown';
 import type { AIMessage } from '../hooks/useAIChat';
-import type { ResearchPhase, DeepeningProgress, InferenceResult } from '../hooks/useAIResearch';
-import type { GoDeepPhase, GoDeepProgress as GoDeepProgressData, GoDeepAnalysis, GoDeepDepthLevel } from '../hooks/useAIGoDeeper';
 import { CodeBlock } from './CodeBlock';
-import { ResearchProgress } from './ResearchProgress';
-import { GoDeepProgress } from './GoDeepProgress';
-import { GoDeepButton } from './GoDeepButton';
-import { TechResearchProgress } from './TechResearchProgress';
-import type { TechResearchPhase } from '../hooks/useAITechResearch';
-import { PlanProgress } from './PlanProgress';
-import type { PlanPhase } from '../hooks/useAIPlan';
 import { CreateProgress } from './CreateProgress';
 import type { CreatePhase } from '../hooks/useAICreate';
-import type { AIChatMode, SourceFetchProgress } from '../types/global';
+import type { AIChatMode } from '../types/global';
 
 const MessagesContainer = styled(Box)(({ theme }) => ({
     flex: 1,
@@ -195,39 +186,10 @@ const DiffTabBanner = styled(Box)(({ theme }) => ({
 }));
 
 interface ChatMessagesProps {
-    messages: AIMessage[];
+    askMessages: AIMessage[];
     greeting: string;
-    isLoading: boolean;
+    isAskLoading: boolean;
     isEditLoading: boolean;
-    isResearchLoading: boolean;
-    researchPhase: ResearchPhase;
-    deepeningProgress: DeepeningProgress | null;
-    inferenceResult: InferenceResult | null;
-    researchComplete: boolean;
-    isGoDeepLoading: boolean;
-    goDeepPhase: GoDeepPhase;
-    goDeepProgress: GoDeepProgressData | null;
-    goDeepAnalysis: GoDeepAnalysis | null;
-    goDeepComplete: boolean;
-    goDeepError: string | null;
-    goDeepFileName: string | null;
-    documentTopics?: string[];
-    onGoDeeper: () => void;
-    onTopicsContinue?: (topics: string[]) => void;
-    depthLevel?: GoDeepDepthLevel;
-    onDepthLevelChange?: (level: GoDeepDepthLevel) => void;
-    isTechResearchLoading: boolean;
-    techResearchPhase: TechResearchPhase;
-    techResearchComplete: boolean;
-    techResearchError: string | null;
-    techResearchFileName: string | null;
-    techResearchQuery: string | null;
-    isPlanLoading: boolean;
-    planPhase: PlanPhase;
-    planComplete: boolean;
-    planError: string | null;
-    planFileName: string | null;
-    planQuery: string | null;
     isCreateLoading: boolean;
     createPhase: CreatePhase;
     createComplete: boolean;
@@ -235,50 +197,18 @@ interface ChatMessagesProps {
     createFileName: string | null;
     createQuery: string | null;
     mode: AIChatMode;
-    sourceFetchProgress?: SourceFetchProgress[];
-    isWebSearchEnabled?: boolean;
     hasDiffTab: boolean;
     loadingDisplayText: string;
-    error: string | null;
+    askError: string | null;
     editModeError: string | null;
-    researchError: string | null;
     messagesEndRef: React.RefObject<HTMLDivElement | null>;
 }
 
 export function ChatMessages({
-    messages,
+    askMessages,
     greeting,
-    isLoading,
+    isAskLoading,
     isEditLoading,
-    isResearchLoading,
-    researchPhase,
-    deepeningProgress,
-    inferenceResult,
-    researchComplete,
-    isGoDeepLoading,
-    goDeepPhase,
-    goDeepProgress,
-    goDeepAnalysis,
-    goDeepComplete,
-    goDeepError,
-    goDeepFileName,
-    documentTopics,
-    onGoDeeper,
-    onTopicsContinue,
-    depthLevel,
-    onDepthLevelChange,
-    isTechResearchLoading,
-    techResearchPhase,
-    techResearchComplete,
-    techResearchError,
-    techResearchFileName,
-    techResearchQuery,
-    isPlanLoading,
-    planPhase,
-    planComplete,
-    planError,
-    planFileName,
-    planQuery,
     isCreateLoading,
     createPhase,
     createComplete,
@@ -286,32 +216,30 @@ export function ChatMessages({
     createFileName,
     createQuery,
     mode,
-    sourceFetchProgress,
-    isWebSearchEnabled,
     hasDiffTab,
     loadingDisplayText,
-    error,
+    askError,
     editModeError,
-    researchError,
     messagesEndRef,
 }: ChatMessagesProps) {
     const [diffReviewMessage] = useState(() =>
         DIFF_REVIEW_MESSAGES[Math.floor(Math.random() * DIFF_REVIEW_MESSAGES.length)]
     );
 
-    const showGreeting = messages.length === 0 && !isLoading && !isEditLoading && !isResearchLoading && !isGoDeepLoading && !goDeepComplete && !researchComplete && !isTechResearchLoading && !techResearchComplete && !isPlanLoading && !planComplete && !isCreateLoading && !createComplete && !hasDiffTab;
+    const showGreeting = askMessages.length === 0 && !isAskLoading && !isEditLoading && !isCreateLoading && !createComplete && !hasDiffTab;
 
     return (
         <MessagesContainer>
             {showGreeting ? (
                 <GreetingContainer>
-                    {mode === 'plan' ? (
+                    {mode === 'ask' ? (
                         <Box sx={{ textAlign: 'center' }}>
                             <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
-                                Plan Mode
+                                Ask Mode
                             </Typography>
                             <Typography color="text.secondary" variant="body2">
-                                Describe a project, feature, or task you want to plan. The AI will analyze your request, optionally search the web for relevant context, and generate a structured plan document with objectives, work breakdown, risk assessment, and next steps.
+                                Ask any question — each query is independent and self-contained.
+                                Attach files for additional context.
                             </Typography>
                         </Box>
                     ) : mode === 'create' ? (
@@ -323,6 +251,15 @@ export function ChatMessages({
                                 Describe what you want to create — a blog post, README, spec, story, letter, or anything else. Attach context files for richer output. The AI will generate a complete document and open it in a new tab.
                             </Typography>
                         </Box>
+                    ) : mode === 'edit' ? (
+                        <Box sx={{ textAlign: 'center' }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                                Edit Mode
+                            </Typography>
+                            <Typography color="text.secondary" variant="body2">
+                                Describe the changes you want — rewrite a section, add a table of contents, fix grammar, or restructure the document. The AI will modify the active file and open a diff tab so you can review and accept changes hunk by hunk.
+                            </Typography>
+                        </Box>
                     ) : (
                         <Typography color="text.secondary" variant="body2" sx={{ fontStyle: 'italic' }}>
                             {greeting}
@@ -330,7 +267,7 @@ export function ChatMessages({
                     )}
                 </GreetingContainer>
             ) : (
-                messages.map((msg, idx) => (
+                askMessages.map((msg, idx) => (
                     <MessageBubble key={idx} role={msg.role}>
                         {msg.role === 'assistant' ? (
                             <>
@@ -343,7 +280,7 @@ export function ChatMessages({
                     </MessageBubble>
                 ))
             )}
-            {isLoading && (
+            {isAskLoading && (
                 <ChatLoadingContainer>
                     <CircularProgress size={24} />
                 </ChatLoadingContainer>
@@ -364,66 +301,6 @@ export function ChatMessages({
                         <LoadingCursor />
                     </Typography>
                 </EditLoadingContainer>
-            )}
-            {(isGoDeepLoading || goDeepComplete) && (
-                <GoDeepProgress
-                    goDeepPhase={goDeepPhase}
-                    goDeepProgress={goDeepProgress}
-                    goDeepAnalysis={goDeepAnalysis}
-                    fileName={goDeepFileName ?? undefined}
-                    documentTopics={documentTopics}
-                    onTopicsContinue={onTopicsContinue}
-                />
-            )}
-            {!isGoDeepLoading && !goDeepComplete && (isResearchLoading || researchComplete) && (
-                <ResearchProgress
-                    researchPhase={researchPhase}
-                    deepeningProgress={deepeningProgress}
-                    inferenceResult={inferenceResult}
-                />
-            )}
-            {(isTechResearchLoading || techResearchComplete) && techResearchPhase && (
-                <>
-                    {techResearchQuery && (
-                        <MessageBubble role="user">
-                            <Typography variant="body2">{techResearchQuery}</Typography>
-                        </MessageBubble>
-                    )}
-                    <TechResearchProgress
-                        techResearchPhase={techResearchPhase}
-                        sourceFetchProgress={sourceFetchProgress}
-                        isWebSearchEnabled={isWebSearchEnabled}
-                    />
-                </>
-            )}
-            {techResearchComplete && techResearchFileName && (
-                <DiffTabBanner>
-                    <Typography variant="body2">
-                        Tech Research complete — {techResearchFileName}
-                    </Typography>
-                </DiffTabBanner>
-            )}
-            {(isPlanLoading || planComplete) && planPhase && (
-                <>
-                    {planQuery && (
-                        <MessageBubble role="user">
-                            <Typography variant="body2">{planQuery}</Typography>
-                        </MessageBubble>
-                    )}
-                    <PlanProgress planPhase={planPhase} />
-                </>
-            )}
-            {planComplete && planFileName && (
-                <DiffTabBanner>
-                    <Typography variant="body2">
-                        Plan complete — {planFileName}
-                    </Typography>
-                </DiffTabBanner>
-            )}
-            {planError && (
-                <Typography color="error" variant="body2" sx={{ textAlign: 'center' }}>
-                    {planError}
-                </Typography>
             )}
             {(isCreateLoading || createComplete) && createPhase && (
                 <>
@@ -447,37 +324,14 @@ export function ChatMessages({
                     {createError}
                 </Typography>
             )}
-            {(researchComplete || goDeepComplete) && !isResearchLoading && !isGoDeepLoading && (
-                <GoDeepButton
-                    onClick={onGoDeeper}
-                    fileName={goDeepFileName ?? undefined}
-                    depthLevel={depthLevel}
-                    onDepthLevelChange={onDepthLevelChange}
-                />
-            )}
-            {error && (
+            {askError && (
                 <Typography color="error" variant="body2" sx={{ textAlign: 'center' }}>
-                    {error}
+                    {askError}
                 </Typography>
             )}
             {editModeError && (
                 <Typography color="error" variant="body2" sx={{ textAlign: 'center' }}>
                     {editModeError}
-                </Typography>
-            )}
-            {researchError && (
-                <Typography color="error" variant="body2" sx={{ textAlign: 'center' }}>
-                    {researchError}
-                </Typography>
-            )}
-            {goDeepError && (
-                <Typography color="error" variant="body2" sx={{ textAlign: 'center' }}>
-                    {goDeepError}
-                </Typography>
-            )}
-            {techResearchError && (
-                <Typography color="error" variant="body2" sx={{ textAlign: 'center' }}>
-                    {techResearchError}
                 </Typography>
             )}
             {hasDiffTab && (

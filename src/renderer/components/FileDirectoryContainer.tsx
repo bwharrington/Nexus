@@ -8,6 +8,7 @@ interface FileDirectoryContainerProps {
     directories: DirectoryInstance[];
     attachedFilePaths: Set<string>;
     onToggleNexusAttachment: (filePath: string, fileName: string) => void;
+    onAttachFiles: (files: Array<{ path: string; name: string }>) => void;
     onOpenFolder: () => void;
 }
 
@@ -35,6 +36,7 @@ export const FileDirectoryContainer = React.memo(function FileDirectoryContainer
     directories,
     attachedFilePaths,
     onToggleNexusAttachment,
+    onAttachFiles,
     onOpenFolder,
 }: FileDirectoryContainerProps) {
     if (directories.length === 0) {
@@ -66,6 +68,7 @@ export const FileDirectoryContainer = React.memo(function FileDirectoryContainer
                     directory={dir}
                     attachedFilePaths={attachedFilePaths}
                     onToggleNexusAttachment={onToggleNexusAttachment}
+                    onAttachFiles={onAttachFiles}
                 />
             ))}
         </ScrollablePanel>

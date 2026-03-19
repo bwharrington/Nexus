@@ -19,6 +19,7 @@ dotenv.config();
 let mainWindow: BrowserWindow | null;
 let pendingFilesToOpen: string[] = [];
 let fileWatchers: Map<string, fsSync.FSWatcher> = new Map();
+let directoryWatchers: Map<string, fsSync.FSWatcher> = new Map();
 
 // Supported markdown file extensions (for Windows file associations)
 const MARKDOWN_EXTENSIONS = ['.md', '.markdown', '.mdown', '.mkd', '.mkdn', '.mdx', '.mdwn', '.mdc'];
@@ -323,6 +324,42 @@ function unwatchFile(filePath: string) {
         watcher.close();
         fileWatchers.delete(filePath);
         log('Stopped watching file', { filePath });
+    }
+}
+
+// Watch a directory for structural changes (files added, removed, renamed)
+function watchDirectory(dirPath: string) {
+    // Don't watch if already watching
+    if (directoryWatchers.has(dirPath)) {
+        return;
+    }
+
+    try {
+        const watcher = fsSync.watch(dirPath, { recursive: true }, (eventType) => {
+            // Only react to 'rename' events — these indicate structural changes
+            // (file/folder created, deleted, or renamed). 'change' events are
+            // content modifications, which are already handled by the file watcher.
+            if (eventType === 'rename') {
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                    mainWindow.webContents.send('directory:external-change', dirPath);
+                }
+            }
+        });
+
+        directoryWatchers.set(dirPath, watcher);
+        log('Started watching directory', { dirPath });
+    } catch (error) {
+        logError(`Failed to watch directory: ${dirPath}`, error as Error);
+    }
+}
+
+// Stop watching a directory
+function unwatchDirectory(dirPath: string) {
+    const watcher = directoryWatchers.get(dirPath);
+    if (watcher) {
+        watcher.close();
+        directoryWatchers.delete(dirPath);
+        log('Stopped watching directory', { dirPath });
     }
 }
 
@@ -716,6 +753,15 @@ function registerIpcHandlers() {
         unwatchFile(filePath);
     });
 
+    // Directory watching
+    ipcMain.handle('directory:watch', async (_event, dirPath: string) => {
+        watchDirectory(dirPath);
+    });
+
+    ipcMain.handle('directory:unwatch', async (_event, dirPath: string) => {
+        unwatchDirectory(dirPath);
+    });
+
     // File: Save clipboard image to disk
     ipcMain.handle('file:save-image', async (_event, base64Data: string, documentDir: string) => {
         log('IPC: file:save-image called', { documentDir });
@@ -778,8 +824,8 @@ function registerIpcHandlers() {
     });
 
     // File: Read directory recursively (returns tree of supported files)
-    ipcMain.handle('file:read-directory', async (_event, dirPath: string) => {
-        log('IPC: file:read-directory called', { dirPath });
+    ipcMain.handle('file:read-directory', async (_event, dirPath: string, showAllFiles?: boolean) => {
+        log('IPC: file:read-directory called', { dirPath, showAllFiles });
 
         interface DirNode {
             name: string;
@@ -813,7 +859,7 @@ function registerIpcHandlers() {
                     });
                 } else {
                     const ext = path.extname(entry.name).toLowerCase();
-                    if (DIRECTORY_SUPPORTED_EXTENSIONS.includes(ext)) {
+                    if (showAllFiles || DIRECTORY_SUPPORTED_EXTENSIONS.includes(ext)) {
                         nodes.push({
                             name: entry.name,
                             path: fullPath,

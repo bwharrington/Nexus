@@ -1,6 +1,6 @@
 import React, { useMemo, useCallback } from 'react';
 import { Popover, Box, Typography, IconButton, Divider, styled } from '@mui/material';
-import { CloseIcon, FolderOpenIcon, DescriptionIcon, PlusIcon, VisibilityIcon, VisibilityOffIcon } from './AppIcons';
+import { CloseIcon, FolderOpenIcon, DescriptionIcon, PlusIcon, MinusIcon } from './AppIcons';
 import type { AttachedFile } from './FileAttachmentsList';
 import type { IFile } from '../types';
 
@@ -43,7 +43,6 @@ interface AttachFilePopoverProps {
     attachedFiles: AttachedFile[];
     onAttachFromDisk: () => void;
     onToggleFileAttachment: (file: IFile) => void;
-    onToggleContextDoc: (filePath: string) => void;
 }
 
 export function AttachFilePopover({
@@ -53,19 +52,12 @@ export function AttachFilePopover({
     attachedFiles,
     onAttachFromDisk,
     onToggleFileAttachment,
-    onToggleContextDoc,
 }: AttachFilePopoverProps) {
     const isOpen = Boolean(anchorEl);
 
-    // Map of attached file paths to their AttachedFile entries
-    const attachedByPath = useMemo(
-        () => new Map(attachedFiles.map(f => [f.path, f])),
-        [attachedFiles],
-    );
-
-    // Set of manually attached file paths (non-context-doc)
-    const manuallyAttachedPaths = useMemo(
-        () => new Set(attachedFiles.filter(f => !f.isContextDoc).map(f => f.path)),
+    // Set of attached file paths
+    const attachedPaths = useMemo(
+        () => new Set(attachedFiles.map(f => f.path)),
         [attachedFiles],
     );
 
@@ -124,31 +116,7 @@ export function AttachFilePopover({
                                 );
                             }
 
-                            const attachedEntry = attachedByPath.get(file.path);
-                            const isContextDoc = attachedEntry?.isContextDoc === true;
-                            const isContextDocEnabled = attachedEntry?.enabled !== false;
-                            const isManuallyAttached = manuallyAttachedPaths.has(file.path);
-
-                            if (isContextDoc) {
-                                // Active file: show eye icon, clicking toggles visibility
-                                return (
-                                    <FileRow key={file.id} onClick={() => onToggleContextDoc(file.path!)}>
-                                        <DescriptionIcon size={16} sx={{ color: 'text.secondary' }} />
-                                        <Typography variant="body2" sx={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                            {file.name}
-                                        </Typography>
-                                        {isContextDocEnabled
-                                            ? <VisibilityIcon fontSize="small" sx={{ color: 'primary.main', flexShrink: 0 }} />
-                                            : <VisibilityOffIcon fontSize="small" sx={{ color: 'text.disabled', flexShrink: 0 }} />
-                                        }
-                                    </FileRow>
-                                );
-                            }
-
-                            if (isManuallyAttached) {
-                                // Already manually attached — skip (it's in the chips list with an X)
-                                return null;
-                            }
+                            const isAttached = attachedPaths.has(file.path);
 
                             return (
                                 <FileRow key={file.id} onClick={() => handleToggle(file)}>
@@ -156,7 +124,10 @@ export function AttachFilePopover({
                                     <Typography variant="body2" sx={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                         {file.name}
                                     </Typography>
-                                    <PlusIcon size={16} sx={{ color: 'success.main', flexShrink: 0 }} />
+                                    {isAttached
+                                        ? <MinusIcon size={16} sx={{ color: 'error.main', flexShrink: 0 }} />
+                                        : <PlusIcon size={16} sx={{ color: 'success.main', flexShrink: 0 }} />
+                                    }
                                 </FileRow>
                             );
                         })}

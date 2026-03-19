@@ -6,7 +6,7 @@
  * The send handler will also enforce these restrictions at runtime.
  *
  * Example restriction:
- *   xai: ['edit', 'research']  — xAI cannot use edit or research mode (no structured output support)
+ *   xai: ['edit']  — xAI cannot use edit mode (no structured output support)
  */
 
 import type { AIProvider } from './hooks/useAIChat';

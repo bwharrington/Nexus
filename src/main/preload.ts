@@ -11,6 +11,8 @@ const electronAPI = {
   renameFile: (oldPath: string, newPath: string) => ipcRenderer.invoke('file:rename', oldPath, newPath),
   watchFile: (filePath: string) => ipcRenderer.invoke('file:watch', filePath),
   unwatchFile: (filePath: string) => ipcRenderer.invoke('file:unwatch', filePath),
+  watchDirectory: (dirPath: string) => ipcRenderer.invoke('directory:watch', dirPath),
+  unwatchDirectory: (dirPath: string) => ipcRenderer.invoke('directory:unwatch', dirPath),
   saveClipboardImage: (base64Data: string, documentDir: string) =>
     ipcRenderer.invoke('file:save-image', base64Data, documentDir),
   saveDroppedImage: (sourcePath: string, documentDir: string) =>
@@ -20,7 +22,7 @@ const electronAPI = {
 
   // Directory operations
   openFolderDialog: () => ipcRenderer.invoke('dialog:open-folder'),
-  readDirectory: (dirPath: string) => ipcRenderer.invoke('file:read-directory', dirPath),
+  readDirectory: (dirPath: string, showAllFiles?: boolean) => ipcRenderer.invoke('file:read-directory', dirPath, showAllFiles),
   createFileOnDisk: (dirPath: string) => ipcRenderer.invoke('file:create-file', dirPath),
   createFolder: (dirPath: string) => ipcRenderer.invoke('file:create-folder', dirPath),
   moveItem: (sourcePath: string, destDir: string) => ipcRenderer.invoke('file:move', sourcePath, destDir),
@@ -110,6 +112,10 @@ const electronAPI = {
   onExternalFileRename: (callback: (filePath: string) => void) => {
     ipcRenderer.on('file:external-rename', (_event, filePath: string) => callback(filePath));
     return () => ipcRenderer.removeAllListeners('file:external-rename');
+  },
+  onDirectoryChange: (callback: (dirPath: string) => void) => {
+    ipcRenderer.on('directory:external-change', (_event, dirPath: string) => callback(dirPath));
+    return () => ipcRenderer.removeAllListeners('directory:external-change');
   },
   onOpenFilesFromArgs: (callback: (filePaths: string[]) => void) => {
     ipcRenderer.on('open-files-from-args', (_event, filePaths: string[]) => callback(filePaths));

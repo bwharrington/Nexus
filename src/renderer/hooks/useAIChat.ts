@@ -61,12 +61,8 @@ export function useAIChat(options?: UseAIChatOptions) {
     const [selectedModel, setSelectedModel] = useState<string>('');
     const [isLoadingModels, setIsLoadingModels] = useState(false);
 
-    // Chat state
-    const [messages, setMessages] = useState<AIMessage[]>([]);
+    // Shared input state across all modes
     const [inputValue, setInputValue] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const activeRequestIdRef = useRef<string | null>(null);
 
     useEffect(() => {
         currentSelectedModelRef.current = selectedModel;
@@ -126,7 +122,6 @@ export function useAIChat(options?: UseAIChatOptions) {
             }
 
             setIsLoadingModels(true);
-            setError(null);
 
             try {
                 const results = await Promise.all(
@@ -146,13 +141,10 @@ export function useAIChat(options?: UseAIChatOptions) {
 
                 if (allModels.length > 0) {
                     pickModelSelection(allModels);
-                } else {
-                    setError('No models available');
                 }
             } catch (err) {
                 if (cancelled) return;
                 console.error('Failed to fetch models:', err);
-                setError('Failed to load models');
             } finally {
                 if (!cancelled) {
                     setIsLoadingModels(false);
@@ -171,117 +163,6 @@ export function useAIChat(options?: UseAIChatOptions) {
         return model?.provider;
     }, [models]);
 
-    // Send message
-    const sendMessage = useCallback(async (attachedFiles?: Array<{ name: string; path: string; type: string; size: number }>) => {
-        if (!inputValue.trim() || isLoading) return;
-
-        const provider = getProviderForModel(selectedModel);
-        if (!provider) {
-            setError('No model selected');
-            return;
-        }
-
-        let attachments: AttachmentData[] | undefined;
-        if (attachedFiles && attachedFiles.length > 0) {
-            try {
-                const fileDataPromises = attachedFiles.map(async (file): Promise<AttachmentData | null> => {
-                    const fileData = await window.electronAPI.readFileForAttachment(file.path);
-                    if (fileData.type === 'image' || fileData.type === 'text') {
-                        return {
-                            name: file.name,
-                            type: fileData.type,
-                            mimeType: fileData.mimeType,
-                            data: fileData.data!,
-                        } as AttachmentData;
-                    }
-                    return null;
-                });
-
-                const results = await Promise.all(fileDataPromises);
-                attachments = results.filter((f): f is AttachmentData => f !== null);
-            } catch (err) {
-                console.error('Failed to read attached files:', err);
-                setError('Failed to read attached files');
-                return;
-            }
-        }
-
-        const userMessage: AIMessage = {
-            role: 'user',
-            content: inputValue.trim(),
-            timestamp: new Date(),
-            attachments,
-        };
-
-        setMessages(prev => [...prev, userMessage]);
-        setInputValue('');
-        setIsLoading(true);
-        setError(null);
-        const requestId = `ai-chat-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        activeRequestIdRef.current = requestId;
-
-        try {
-            const apiMessages = [...messages, userMessage].map(m => ({
-                role: m.role,
-                content: m.content,
-                attachments: m.attachments,
-            }));
-
-            let response;
-            if (provider === 'xai') {
-                response = await window.electronAPI.aiChatRequest(apiMessages, selectedModel, requestId);
-            } else if (provider === 'claude') {
-                response = await window.electronAPI.claudeChatRequest(apiMessages, selectedModel, requestId);
-            } else if (provider === 'openai') {
-                response = await window.electronAPI.openaiChatRequest(apiMessages, selectedModel, requestId);
-            } else {
-                response = await window.electronAPI.geminiChatRequest(apiMessages, selectedModel, requestId);
-            }
-
-            if (activeRequestIdRef.current !== requestId) return;
-
-            if (response.success && response.response) {
-                const assistantMessage: AIMessage = {
-                    role: 'assistant',
-                    content: response.response,
-                    timestamp: new Date(),
-                };
-                setMessages(prev => [...prev, assistantMessage]);
-            } else {
-                setError(response.error || 'Failed to get response');
-            }
-        } catch (err) {
-            if (activeRequestIdRef.current !== requestId) return;
-            console.error('Failed to send message:', err);
-            setError('Failed to send message');
-        } finally {
-            if (activeRequestIdRef.current === requestId) {
-                activeRequestIdRef.current = null;
-                setIsLoading(false);
-            }
-        }
-    }, [inputValue, isLoading, messages, selectedModel, getProviderForModel]);
-
-    const cancelCurrentRequest = useCallback(async () => {
-        const requestId = activeRequestIdRef.current;
-        if (!requestId) return;
-
-        activeRequestIdRef.current = null;
-        setIsLoading(false);
-        setError('Request canceled');
-
-        try {
-            await window.electronAPI.cancelAIChatRequest(requestId);
-        } catch (err) {
-            console.error('Failed to cancel AI request:', err);
-        }
-    }, []);
-
-    const clearChat = useCallback(() => {
-        setMessages([]);
-        setError(null);
-    }, []);
-
     return {
         // Provider statuses (for checking enabled state)
         providerStatuses,
@@ -294,14 +175,8 @@ export function useAIChat(options?: UseAIChatOptions) {
         setSelectedModel,
         isLoadingModels,
 
-        // Chat
-        messages,
+        // Shared input state
         inputValue,
         setInputValue,
-        isLoading,
-        error,
-        sendMessage,
-        cancelCurrentRequest,
-        clearChat,
     };
 }

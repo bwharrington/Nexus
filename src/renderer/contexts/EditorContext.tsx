@@ -616,7 +616,7 @@ export function EditorProvider({ children }: EditorProviderProps) {
                 // Migrate legacy aiChatEditMode boolean to aiChatMode enum
                 if ('aiChatEditMode' in config && (config as Record<string, unknown>).aiChatEditMode !== undefined) {
                     const legacy = config as Record<string, unknown>;
-                    config.aiChatMode = legacy.aiChatEditMode ? 'edit' : 'chat';
+                    config.aiChatMode = legacy.aiChatEditMode ? 'edit' : 'ask';
                     delete legacy.aiChatEditMode;
                     void window.electronAPI.saveConfig(config).catch(() => {});
                 }

@@ -2,6 +2,8 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useEditorState, useEditorDispatch } from '../contexts';
 import { getFileType } from '../utils/fileHelpers';
 import type { DirectoryNode, FileDirectorySortOrder, IConfig } from '../types';
+import { sortChildren } from '../components/FileTreeNode';
+import { useDirectoryWatcher } from './useDirectoryWatcher';
 
 export interface DirectoryInstance {
     id: string;
@@ -12,20 +14,26 @@ export interface DirectoryInstance {
     sortOrder: FileDirectorySortOrder;
     isAllExpanded: boolean;
     renamingPath: string | null;
+    selectedPaths: Set<string>;
+    showAllFiles: boolean;
     refreshTree: () => Promise<void>;
     closeDirectory: () => void;
     toggleNode: (path: string) => void;
     expandAll: () => void;
     collapseAll: () => void;
     setSortOrder: (order: FileDirectorySortOrder) => void;
+    selectFileMulti: (path: string, ctrlKey: boolean, shiftKey: boolean) => void;
+    toggleShowAllFiles: () => Promise<void>;
     createNewFile: (parentPath?: string) => Promise<void>;
     createNewFolder: (parentPath?: string) => Promise<void>;
     moveItem: (sourcePath: string, destDirPath: string) => Promise<void>;
     deleteItem: (itemPath: string) => Promise<void>;
+    deleteMultipleItems: (paths: string[]) => Promise<void>;
     renameItem: (oldPath: string, newName: string) => Promise<void>;
     startRename: (path: string) => void;
     cancelRename: () => void;
     openFileInEditor: (filePath: string) => Promise<void>;
+    openMultipleFiles: (paths: string[]) => Promise<void>;
 }
 
 export interface UseFileDirectoriesReturn {
@@ -40,6 +48,9 @@ interface InstanceState {
     expandedPaths: Set<string>;
     sortOrder: FileDirectorySortOrder;
     renamingPath: string | null;
+    selectedPaths: Set<string>;
+    lastSelectedPath: string | null;
+    showAllFiles: boolean;
 }
 
 function collectAllFolderPaths(node: DirectoryNode): string[] {
@@ -53,6 +64,22 @@ function collectAllFolderPaths(node: DirectoryNode): string[] {
         }
     }
     return paths;
+}
+
+function collectVisibleFiles(
+    nodes: DirectoryNode[],
+    expandedPaths: Set<string>,
+    sortOrder: FileDirectorySortOrder,
+): string[] {
+    const result: string[] = [];
+    for (const node of sortChildren(nodes, sortOrder)) {
+        if (!node.isDirectory) {
+            result.push(node.path);
+        } else if (node.children && expandedPaths.has(node.path)) {
+            result.push(...collectVisibleFiles(node.children, expandedPaths, sortOrder));
+        }
+    }
+    return result;
 }
 
 export function useFileDirectories(): UseFileDirectoriesReturn {
@@ -92,10 +119,35 @@ export function useFileDirectories(): UseFileDirectoriesReturn {
         });
     }, []);
 
+    // Sync selectedPaths across all directory instances whenever the active tab changes.
+    // This ensures selection resets to just the active file when switching tabs.
+    useEffect(() => {
+        const activeFile = state.openFiles.find(f => f.id === state.activeFileId);
+        const activeFilePath = activeFile?.path ?? null;
+
+        orderedPathsRef.current.forEach(dirPath => {
+            const isInDir = activeFilePath &&
+                (activeFilePath.startsWith(dirPath + '\\') || activeFilePath.startsWith(dirPath + '/'));
+            updateInstance(dirPath, s => {
+                const newSelected = isInDir ? activeFilePath : null;
+                // Avoid no-op updates
+                if (s.selectedPaths.size === (newSelected ? 1 : 0) &&
+                    (!newSelected || s.selectedPaths.has(newSelected))) return s;
+                return {
+                    ...s,
+                    selectedPaths: newSelected ? new Set([newSelected]) : new Set<string>(),
+                    lastSelectedPath: newSelected,
+                };
+            });
+        });
+    }, [state.activeFileId, state.openFiles, updateInstance]);
+
     const readTree = useCallback(async (dirPath: string) => {
         updateInstance(dirPath, s => ({ ...s, isLoading: true }));
         try {
-            const result = await window.electronAPI.readDirectory(dirPath);
+            const inst = instancesRef.current.get(dirPath);
+            const showAllFiles = inst?.showAllFiles ?? false;
+            const result = await window.electronAPI.readDirectory(dirPath, showAllFiles);
             updateInstance(dirPath, s => {
                 const newState = { ...s, isLoading: false };
                 if (result) {
@@ -106,13 +158,14 @@ export function useFileDirectories(): UseFileDirectoriesReturn {
                 }
                 return newState;
             });
+            window.electronAPI.watchDirectory(dirPath);
         } catch (err) {
             console.error('Failed to read directory:', err);
             updateInstance(dirPath, s => ({ ...s, isLoading: false }));
         }
     }, [updateInstance]);
 
-    const addDirectory = useCallback((dirPath: string, sortOrder?: FileDirectorySortOrder) => {
+    const addDirectory = useCallback((dirPath: string, sortOrder?: FileDirectorySortOrder, showAllFiles?: boolean) => {
         setInstances(prev => {
             if (prev.has(dirPath)) return prev;
             const next = new Map(prev);
@@ -122,6 +175,9 @@ export function useFileDirectories(): UseFileDirectoriesReturn {
                 expandedPaths: new Set<string>(),
                 sortOrder: sortOrder ?? 'asc',
                 renamingPath: null,
+                selectedPaths: new Set<string>(),
+                lastSelectedPath: null,
+                showAllFiles: showAllFiles ?? false,
             });
             return next;
         });
@@ -178,9 +234,10 @@ export function useFileDirectories(): UseFileDirectoriesReturn {
 
         hasRestoredRef.current = true;
         const savedSorts = state.config.openDirectorySort ?? {};
+        const savedShowAllFiles = state.config.openDirectoryShowAllFiles ?? {};
 
         for (const dirPath of pathsToRestore) {
-            addDirectory(dirPath, savedSorts[dirPath]);
+            addDirectory(dirPath, savedSorts[dirPath], savedShowAllFiles[dirPath]);
         }
 
         // If migrating from legacy, persist the new format and clear legacy
@@ -317,7 +374,7 @@ export function useFileDirectories(): UseFileDirectoriesReturn {
             const inst = instances.get(dirPath);
             if (!inst) return null;
 
-            const { tree, isLoading, expandedPaths, sortOrder, renamingPath } = inst;
+            const { tree, isLoading, expandedPaths, sortOrder, renamingPath, selectedPaths, showAllFiles } = inst;
             const isAllExpanded = tree
                 ? collectAllFolderPaths(tree).every(p => expandedPaths.has(p))
                 : false;
@@ -327,7 +384,7 @@ export function useFileDirectories(): UseFileDirectoriesReturn {
                 if (current) {
                     updateInstance(dirPath, s => ({ ...s, isLoading: true }));
                     try {
-                        const result = await window.electronAPI.readDirectory(dirPath);
+                        const result = await window.electronAPI.readDirectory(dirPath, current.showAllFiles);
                         updateInstance(dirPath, s => ({
                             ...s,
                             isLoading: false,
@@ -340,6 +397,7 @@ export function useFileDirectories(): UseFileDirectoriesReturn {
             };
 
             const closeDirectory = () => {
+                window.electronAPI.unwatchDirectory(dirPath);
                 removeDirectory(dirPath);
                 const newOrdered = orderedPathsRef.current.filter(p => p !== dirPath);
                 const openDirs = (configRef.current.openDirectories ?? []).filter(p => p !== dirPath);
@@ -377,6 +435,58 @@ export function useFileDirectories(): UseFileDirectoriesReturn {
                 updateInstance(dirPath, s => ({ ...s, sortOrder: order }));
                 const sortMap = { ...(configRef.current.openDirectorySort ?? {}), [dirPath]: order };
                 persistConfig({ openDirectorySort: sortMap });
+            };
+
+            const selectFileMulti = (filePath: string, ctrlKey: boolean, shiftKey: boolean) => {
+                updateInstance(dirPath, s => {
+                    if (shiftKey && s.lastSelectedPath) {
+                        const rootChildren = s.tree?.children ?? [];
+                        const visibleFiles = collectVisibleFiles(rootChildren, s.expandedPaths, s.sortOrder);
+                        const anchorIdx = visibleFiles.indexOf(s.lastSelectedPath);
+                        const targetIdx = visibleFiles.indexOf(filePath);
+                        if (anchorIdx === -1 || targetIdx === -1) {
+                            return { ...s, selectedPaths: new Set([filePath]), lastSelectedPath: filePath };
+                        }
+                        const start = Math.min(anchorIdx, targetIdx);
+                        const end = Math.max(anchorIdx, targetIdx);
+                        const range = visibleFiles.slice(start, end + 1);
+                        const newSet = ctrlKey ? new Set([...s.selectedPaths, ...range]) : new Set(range);
+                        return { ...s, selectedPaths: newSet };
+                    } else if (ctrlKey) {
+                        const next = new Set(s.selectedPaths);
+                        if (next.has(filePath)) next.delete(filePath);
+                        else next.add(filePath);
+                        return { ...s, selectedPaths: next, lastSelectedPath: filePath };
+                    } else {
+                        return { ...s, selectedPaths: new Set([filePath]), lastSelectedPath: filePath };
+                    }
+                });
+                // Plain click: switch tab if file is already open
+                if (!ctrlKey && !shiftKey) {
+                    const openFile = openFilesRef.current.find(f => f.path === filePath);
+                    if (openFile) {
+                        dispatch({ type: 'SELECT_TAB', payload: { id: openFile.id } });
+                    }
+                }
+            };
+
+            const toggleShowAllFiles = async () => {
+                const newValue = !showAllFiles;
+                updateInstance(dirPath, s => ({ ...s, showAllFiles: newValue }));
+                const showAllMap = { ...(configRef.current.openDirectoryShowAllFiles ?? {}), [dirPath]: newValue };
+                persistConfig({ openDirectoryShowAllFiles: showAllMap });
+                // Re-read tree with new filter setting
+                updateInstance(dirPath, s => ({ ...s, isLoading: true }));
+                try {
+                    const result = await window.electronAPI.readDirectory(dirPath, newValue);
+                    updateInstance(dirPath, s => ({
+                        ...s,
+                        isLoading: false,
+                        tree: result ?? s.tree,
+                    }));
+                } catch {
+                    updateInstance(dirPath, s => ({ ...s, isLoading: false }));
+                }
             };
 
             const createNewFile = async (parentPath?: string) => {
@@ -454,6 +564,55 @@ export function useFileDirectories(): UseFileDirectoriesReturn {
                 }
             };
 
+            const deleteMultipleItems = async (paths: string[]) => {
+                let deletedCount = 0;
+                for (const itemPath of paths) {
+                    try {
+                        const result = await window.electronAPI.deleteItem(itemPath);
+                        if (result.success) {
+                            deletedCount++;
+                            for (const file of openFilesRef.current) {
+                                if (file.path && (file.path === itemPath || file.path.startsWith(itemPath + '\\') || file.path.startsWith(itemPath + '/'))) {
+                                    dispatch({ type: 'CLOSE_FILE', payload: { id: file.id } });
+                                }
+                            }
+                        }
+                    } catch (err) {
+                        console.error('Failed to delete item:', err);
+                    }
+                }
+                await refreshTree();
+                updateInstance(dirPath, s => ({ ...s, selectedPaths: new Set<string>(), lastSelectedPath: null }));
+                // Persist updated open files config after closing tabs
+                const openFileRefs = openFilesRef.current
+                    .filter(f => f.path !== null && !f.path.endsWith('config.json') && f.viewMode !== 'diff')
+                    .map(f => ({ fileName: f.path!, mode: f.viewMode as 'edit' | 'preview' }));
+                const nextConfig = { ...configRef.current, openFiles: openFileRefs };
+                dispatch({ type: 'SET_CONFIG', payload: nextConfig });
+                window.electronAPI.saveConfig(nextConfig).catch(err => {
+                    console.error('Failed to persist config after bulk delete:', err);
+                });
+                if (deletedCount > 0) {
+                    dispatch({
+                        type: 'SHOW_NOTIFICATION',
+                        payload: { message: `${deletedCount} file${deletedCount !== 1 ? 's' : ''} deleted.`, severity: 'success' },
+                    });
+                }
+            };
+
+            const openMultipleFiles = async (paths: string[]) => {
+                if (paths.length === 0) return;
+                // Open all files, then focus the first one
+                for (const filePath of paths) {
+                    await openFileInEditor(filePath);
+                }
+                // Ensure the first file is focused
+                const firstFile = openFilesRef.current.find(f => f.path === paths[0]);
+                if (firstFile) {
+                    dispatch({ type: 'SELECT_TAB', payload: { id: firstFile.id } });
+                }
+            };
+
             const renameItem = async (oldPath: string, newName: string) => {
                 if (!newName.trim()) {
                     updateInstance(dirPath, s => ({ ...s, renamingPath: null }));
@@ -513,23 +672,36 @@ export function useFileDirectories(): UseFileDirectoriesReturn {
                 sortOrder,
                 isAllExpanded,
                 renamingPath,
+                selectedPaths,
+                showAllFiles,
                 refreshTree,
                 closeDirectory,
                 toggleNode,
                 expandAll,
                 collapseAll,
                 setSortOrder,
+                selectFileMulti,
+                toggleShowAllFiles,
                 createNewFile,
                 createNewFolder,
                 moveItem,
                 deleteItem,
+                deleteMultipleItems,
                 renameItem,
                 startRename,
                 cancelRename,
                 openFileInEditor,
+                openMultipleFiles,
             };
         }).filter((d): d is DirectoryInstance => d !== null);
     }, [orderedPaths, instances, updateInstance, removeDirectory, persistConfig, openFileInEditor, dispatch]);
+
+    // Keep a ref to the latest directories array so useDirectoryWatcher can
+    // read current state without re-subscribing the IPC listener on each render.
+    const directoriesRef = useRef(directories);
+    directoriesRef.current = directories;
+
+    useDirectoryWatcher(directoriesRef);
 
     return { directories, openFolder, openRecentDirectory };
 }

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import {
     Box,
     styled,
@@ -20,17 +20,10 @@ import { ChatMessages } from './ChatMessages';
 import { FileAttachmentsList } from './FileAttachmentsList';
 import type { AttachedFile } from './FileAttachmentsList';
 import { MessageInput } from './MessageInput';
-import { useAIChat } from '../hooks';
+import { useAIChat, useAIAsk } from '../hooks';
 import type { AIProvider } from '../hooks';
 import { useAIDiffEdit } from '../hooks/useAIDiffEdit';
-import { useAIResearch } from '../hooks/useAIResearch';
-import { useAIGoDeeper } from '../hooks/useAIGoDeeper';
-import { useAITechResearch } from '../hooks/useAITechResearch';
-import { useAIPlan } from '../hooks/useAIPlan';
 import { useAICreate } from '../hooks/useAICreate';
-import type { GoDeepDepthLevel } from '../hooks/useAIGoDeeper';
-import type { ResearchDepthLevel } from '../hooks/useAIResearch';
-import { extractDocumentTopics } from '../utils/extractDocumentTopics';
 import { useEditLoadingMessage } from '../hooks/useEditLoadingMessage';
 import { useEditorState, useEditorDispatch } from '../contexts/EditorContext';
 import type { AIChatMode } from '../types/global';
@@ -129,7 +122,6 @@ interface AIChatDialogProps {
     onAddAttachedFiles: (files: AttachedFile[]) => void;
     onRemoveAttachedFile: (filePath: string) => void;
     onToggleFileAttachment: (file: IFile) => void;
-    onToggleContextDoc: (filePath: string) => void;
 }
 
 export function AIChatDialog({
@@ -140,7 +132,6 @@ export function AIChatDialog({
     onAddAttachedFiles,
     onRemoveAttachedFile,
     onToggleFileAttachment,
-    onToggleContextDoc,
 }: AIChatDialogProps) {
     const dialogRef = useRef<HTMLDivElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -153,17 +144,8 @@ export function AIChatDialog({
         AI_GREETINGS[Math.floor(Math.random() * AI_GREETINGS.length)]
     );
 
-    // Track the filename being deepened (set when Go Deeper starts, cleared on dismiss)
-    const [goDeepFileName, setGoDeepFileName] = useState<string | null>(null);
-
-    // User-selected depth level for Go Deeper expansions
-    const [goDeepDepthLevel, setGoDeepDepthLevel] = useState<GoDeepDepthLevel>('practitioner');
-
-    // Glow animation state for context doc
-    const [glowingFile, setGlowingFile] = useState<string | null>(null);
-
-    // Mode state - persisted in config (chat | edit | research)
-    const [mode, setMode] = useState<AIChatMode>(editorState.config.aiChatMode ?? 'chat');
+    // Mode state - persisted in config
+    const [mode, setMode] = useState<AIChatMode>(editorState.config.aiChatMode ?? 'ask');
     const [editModeError, setEditModeError] = useState<string | null>(null);
     const [isEditLoading, setIsEditLoading] = useState(false);
     const activeEditRequestIdRef = useRef<string | null>(null);
@@ -171,61 +153,6 @@ export function AIChatDialog({
 
     // AI Diff Edit hook
     const { requestEdit, hasDiffTab } = useAIDiffEdit();
-
-    // AI Research hook
-    const {
-        submitResearch,
-        cancelResearch,
-        dismissResearchProgress,
-        isResearchLoading,
-        researchError,
-        researchPhase,
-        deepeningProgress,
-        inferenceResult,
-        researchComplete,
-    } = useAIResearch();
-
-    // AI Go Deeper hook
-    const {
-        submitAnalysis,
-        submitExpansion,
-        cancelGoDeeper,
-        dismissGoDeepProgress,
-        isGoDeepLoading,
-        goDeepError,
-        goDeepPhase,
-        goDeepProgress,
-        goDeepAnalysis,
-        goDeepComplete,
-    } = useAIGoDeeper();
-
-    // AI Tech Research hook
-    const {
-        submitTechResearch,
-        cancelTechResearch,
-        dismissTechResearchProgress,
-        isTechResearchLoading,
-        techResearchError,
-        techResearchPhase,
-        techResearchComplete,
-        techResearchFileName,
-        sourceFetchProgress,
-        isWebSearchEnabled,
-    } = useAITechResearch();
-    const [techResearchQuery, setTechResearchQuery] = useState<string | null>(null);
-
-    // AI Plan hook
-    const {
-        submitPlan,
-        cancelPlan,
-        dismissPlanProgress,
-        isPlanLoading,
-        planError,
-        planPhase,
-        planComplete,
-        planFileName,
-    } = useAIPlan();
-    const [planQuery, setPlanQuery] = useState<string | null>(null);
 
     // AI Create hook
     const {
@@ -240,6 +167,16 @@ export function AIChatDialog({
     } = useAICreate();
     const [createQuery, setCreateQuery] = useState<string | null>(null);
 
+    // AI Ask hook (stateless Q&A)
+    const {
+        askMessages,
+        isAskLoading,
+        askError,
+        submitAsk,
+        cancelAsk,
+        clearAsk,
+    } = useAIAsk();
+
     // Rotating loading messages with typewriter effect
     const { displayText: loadingDisplayText } = useEditLoadingMessage(isEditLoading);
 
@@ -250,14 +187,8 @@ export function AIChatDialog({
         selectedModel,
         setSelectedModel,
         isLoadingModels,
-        messages,
         inputValue,
         setInputValue,
-        isLoading,
-        error,
-        sendMessage,
-        cancelCurrentRequest,
-        clearChat,
     } = useAIChat({
         savedModel: editorState.config.aiChatModel,
         aiModels: editorState.config.aiModels,
@@ -275,26 +206,11 @@ export function AIChatDialog({
         });
     }, [dispatch, editorState.config]);
 
-    // User-selected depth level for Research mode (persisted in config)
-    const [researchDepthLevel, setResearchDepthLevel] = useState<ResearchDepthLevel>(
-        (editorState.config.aiResearchDepthLevel as ResearchDepthLevel | undefined) ?? 'practitioner'
-    );
-    const handleResearchDepthLevelChange = useCallback((level: ResearchDepthLevel) => {
-        setResearchDepthLevel(level);
-        persistConfig({ aiResearchDepthLevel: level });
-    }, [persistConfig]);
-
     // Persist mode to config, auto-select valid model if current is restricted
     const handleModeChange = useCallback((newMode: AIChatMode) => {
         setMode(newMode);
         persistConfig({ aiChatMode: newMode });
-        dismissResearchProgress();
-        dismissGoDeepProgress();
-        dismissTechResearchProgress();
-        dismissPlanProgress();
         dismissCreateProgress();
-        setTechResearchQuery(null);
-        setPlanQuery(null);
         setCreateQuery(null);
 
         const currentProvider = getProviderForModel(selectedModel);
@@ -305,14 +221,13 @@ export function AIChatDialog({
                 persistConfig({ aiChatMode: newMode, aiChatModel: firstValid.id });
             }
         }
-    }, [persistConfig, dismissResearchProgress, dismissGoDeepProgress, dismissTechResearchProgress, dismissPlanProgress, dismissCreateProgress, getProviderForModel, selectedModel, models, setSelectedModel]);
+    }, [persistConfig, dismissCreateProgress, getProviderForModel, selectedModel, models, setSelectedModel]);
 
     // Persist model selection
     const handleModelChange = useCallback((newModel: string) => {
         setSelectedModel(newModel);
         persistConfig({ aiChatModel: newModel });
-        dismissResearchProgress();
-    }, [setSelectedModel, persistConfig, dismissResearchProgress]);
+    }, [setSelectedModel, persistConfig]);
 
     // Focus input when dialog opens
     useEffect(() => {
@@ -323,35 +238,16 @@ export function AIChatDialog({
         }
     }, [open]);
 
-    // Context doc sync is handled in App.tsx so it works whether the dialog is open or not.
-
-    // Detect when context document is saved and trigger glow animation
-    useEffect(() => {
-        if (open && editorState.activeFileId && attachedFiles.length > 0) {
-            const activeFile = editorState.openFiles.find(f => f.id === editorState.activeFileId);
-            const contextDoc = attachedFiles.find(f => f.isContextDoc);
-
-            if (activeFile && contextDoc && activeFile.path === contextDoc.path && !activeFile.isDirty) {
-                setGlowingFile(contextDoc.path);
-
-                const timeout = setTimeout(() => {
-                    setGlowingFile(null);
-                }, 3000);
-
-                return () => clearTimeout(timeout);
-            }
-        }
-    }, [open, editorState.openFiles, editorState.activeFileId, attachedFiles]);
 
     // Scroll to bottom when new messages arrive
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
+    }, [askMessages]);
 
-    // Reset to chat mode when the selected model's provider doesn't support the current mode
+    // Reset to ask mode when the selected model's provider doesn't support the current mode
     useEffect(() => {
-        if (mode !== 'chat' && isProviderRestrictedFromMode(provider, mode)) {
-            handleModeChange('chat');
+        if (mode !== 'ask' && isProviderRestrictedFromMode(provider, mode)) {
+            handleModeChange('ask');
         }
     }, [provider, mode, handleModeChange]);
 
@@ -381,13 +277,7 @@ export function AIChatDialog({
 
     const handleSendMessage = useCallback(async () => {
         setEditModeError(null);
-        dismissResearchProgress();
-        dismissGoDeepProgress();
-        dismissTechResearchProgress();
-        dismissPlanProgress();
         dismissCreateProgress();
-        setTechResearchQuery(null);
-        setPlanQuery(null);
         setCreateQuery(null);
 
         const currentProvider = getProviderForModel(selectedModel) ?? 'claude';
@@ -413,59 +303,12 @@ export function AIChatDialog({
             return;
         }
 
-        // Research mode request
-        if (mode === 'research' && !isProviderRestrictedFromMode(currentProvider, 'research')) {
-            const requestId = `ai-research-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-            try {
-                const topic = inputValue;
-                setInputValue('');
-                await submitResearch(topic, currentProvider, selectedModel, requestId, researchDepthLevel);
-            } catch {
-                // Error is handled by the useAIResearch hook (researchError state)
-            }
-            return;
-        }
-
-        // Tech Research mode request
-        if (mode === 'techresearch') {
-            const requestId = `ai-techresearch-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-            try {
-                const query = inputValue;
-                setInputValue('');
-                setTechResearchQuery(query);
-                await submitTechResearch(query, currentProvider, selectedModel, requestId, 'practitioner');
-            } catch {
-                // Error is handled by the useAITechResearch hook (techResearchError state)
-            }
-            return;
-        }
-
-        // Plan mode request
-        if (mode === 'plan') {
-            const requestId = `ai-plan-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-            try {
-                const request = inputValue;
-                const enabledFilesForPlan = attachedFiles.filter(file =>
-                    !file.isContextDoc || file.enabled !== false
-                );
-                setInputValue('');
-                setPlanQuery(request);
-                dismissPlanProgress();
-                await submitPlan(request, enabledFilesForPlan, currentProvider, selectedModel, requestId);
-            } catch {
-                // Error is handled by the useAIPlan hook (planError state)
-            }
-            return;
-        }
-
         // Create mode request
         if (mode === 'create') {
             const requestId = `ai-create-${Date.now()}-${Math.random().toString(36).slice(2)}`;
             try {
                 const request = inputValue;
-                const enabledFilesForCreate = attachedFiles.filter(file =>
-                    !file.isContextDoc || file.enabled !== false
-                );
+                const enabledFilesForCreate = [...attachedFiles];
                 setInputValue('');
                 setCreateQuery(request);
                 dismissCreateProgress();
@@ -476,61 +319,19 @@ export function AIChatDialog({
             return;
         }
 
-        // Regular chat mode
-        const enabledFiles = attachedFiles.filter(file =>
-            !file.isContextDoc || file.enabled !== false
-        );
-        await sendMessage(enabledFiles.length > 0 ? enabledFiles : undefined);
-        setAttachedFiles(prev => prev.filter(file => file.isContextDoc));
-    }, [mode, selectedModel, getProviderForModel, inputValue, researchDepthLevel, requestEdit, submitResearch, submitTechResearch, submitPlan, submitCreate, setInputValue, sendMessage, attachedFiles, dismissResearchProgress, dismissGoDeepProgress, dismissTechResearchProgress, dismissPlanProgress, dismissCreateProgress]);
-
-    const handleGoDeeper = useCallback(async () => {
-        const activeFile = editorState.activeFileId
-            ? editorState.openFiles.find(f => f.id === editorState.activeFileId)
-            : null;
-
-        if (!activeFile || !activeFile.content.trim()) return;
-
-        const currentProvider = getProviderForModel(selectedModel) ?? 'claude';
-        const requestId = `ai-godeep-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        const topic = activeFile.name.replace(/\.md$/i, '').replace(/\s+v\d+$/i, '');
-
-        setGoDeepFileName(activeFile.name);
-        dismissResearchProgress();
-        dismissGoDeepProgress();
-        dismissTechResearchProgress();
-        dismissPlanProgress();
-        dismissCreateProgress();
-        setTechResearchQuery(null);
-        setPlanQuery(null);
-        setCreateQuery(null);
-
-        try {
-            await submitAnalysis(
-                activeFile.id,
-                activeFile.content,
-                topic,
-                currentProvider,
-                selectedModel,
-                requestId,
-                goDeepDepthLevel,
-            );
-        } catch {
-            // Error handled by hook state (goDeepError)
+        // Ask mode request (stateless Q&A)
+        if (mode === 'ask') {
+            const filesToAttach = attachedFiles.length > 0 ? [...attachedFiles] : undefined;
+            const question = inputValue;
+            setInputValue('');
+            setAttachedFiles([]);
+            await submitAsk(question, currentProvider, selectedModel, filesToAttach);
         }
-    }, [editorState.activeFileId, editorState.openFiles, getProviderForModel, selectedModel, submitAnalysis, dismissResearchProgress, dismissGoDeepProgress, dismissTechResearchProgress, dismissPlanProgress, dismissCreateProgress, goDeepDepthLevel]);
-
-    const handleTopicsContinue = useCallback(async (selectedTopics: string[]) => {
-        try {
-            await submitExpansion(selectedTopics);
-        } catch {
-            // Error handled by hook state (goDeepError)
-        }
-    }, [submitExpansion]);
+    }, [mode, selectedModel, getProviderForModel, inputValue, requestEdit, submitAsk, submitCreate, setInputValue, attachedFiles, setAttachedFiles, dismissCreateProgress]);
 
     const handleCancelRequest = useCallback(async () => {
-        if (isLoading) {
-            await cancelCurrentRequest();
+        if (isAskLoading) {
+            await cancelAsk();
             return;
         }
 
@@ -550,83 +351,33 @@ export function AIChatDialog({
             return;
         }
 
-        if (isResearchLoading) {
-            await cancelResearch();
-            return;
-        }
-
-        if (isGoDeepLoading) {
-            await cancelGoDeeper();
-            return;
-        }
-
-        if (isTechResearchLoading) {
-            await cancelTechResearch();
-            return;
-        }
-
-        if (isPlanLoading) {
-            await cancelPlan();
-            return;
-        }
-
         if (isCreateLoading) {
             await cancelCreate();
         }
-    }, [isLoading, isEditLoading, isResearchLoading, isGoDeepLoading, isTechResearchLoading, isPlanLoading, isCreateLoading, cancelCurrentRequest, cancelResearch, cancelGoDeeper, cancelTechResearch, cancelPlan, cancelCreate]);
+    }, [isAskLoading, isEditLoading, isCreateLoading, cancelAsk, cancelCreate]);
 
     const handleClearChatConfirm = useCallback(() => {
-        clearChat();
-        dismissResearchProgress();
-        dismissGoDeepProgress();
-        dismissTechResearchProgress();
-        dismissPlanProgress();
+        clearAsk();
         dismissCreateProgress();
-        setTechResearchQuery(null);
-        setPlanQuery(null);
         setCreateQuery(null);
-        setGoDeepFileName(null);
         setAttachedFiles([]);
         setClearConfirmOpen(false);
-    }, [clearChat, dismissResearchProgress, dismissGoDeepProgress, dismissTechResearchProgress, dismissPlanProgress, dismissCreateProgress, setAttachedFiles]);
-
-    // Document headings extracted for topic selection (only computed during topic_selection pause)
-    // Must be above the early return to satisfy Rules of Hooks
-    const documentTopics = useMemo(() => {
-        if (goDeepPhase !== 'topic_selection') return [];
-        const activeFile = editorState.activeFileId
-            ? editorState.openFiles.find(f => f.id === editorState.activeFileId)
-            : null;
-        if (!activeFile?.content) return [];
-        return extractDocumentTopics(
-            activeFile.content,
-            goDeepAnalysis?.newDeepDiveTopics ?? [],
-        );
-    }, [goDeepPhase, editorState.activeFileId, editorState.openFiles, goDeepAnalysis]);
+    }, [clearAsk, dismissCreateProgress, setAttachedFiles]);
 
     if (!open) return null;
 
     const hasProviders = models.length > 0 || isLoadingModels;
-    const hasActiveRequest = isLoading || isEditLoading || isResearchLoading || isGoDeepLoading || isTechResearchLoading || isPlanLoading || isCreateLoading;
+    const hasActiveRequest = isAskLoading || isEditLoading || isCreateLoading;
 
     console.log('[AIChatDialog] render:', {
         hasActiveRequest,
-        isLoading,
+        isAskLoading,
         isEditLoading,
-        isResearchLoading,
-        isGoDeepLoading,
-        isTechResearchLoading,
-        isPlanLoading,
         isCreateLoading,
         hasDiffTab,
         mode,
         inputValue,
     });
-
-    // The file that would be targeted if the user clicks Go Deeper right now
-    const activeFileName = editorState.activeFileId
-        ? (editorState.openFiles.find(f => f.id === editorState.activeFileId)?.name ?? null)
-        : null;
 
     return (
         <DialogContainer ref={dialogRef}>
@@ -663,39 +414,10 @@ export function AIChatDialog({
             ) : (
                 <>
                     <ChatMessages
-                        messages={messages}
+                        askMessages={askMessages}
                         greeting={greeting}
-                        isLoading={isLoading}
+                        isAskLoading={isAskLoading}
                         isEditLoading={isEditLoading}
-                        isResearchLoading={isResearchLoading}
-                        researchPhase={researchPhase}
-                        deepeningProgress={deepeningProgress}
-                        inferenceResult={inferenceResult}
-                        researchComplete={researchComplete}
-                        isGoDeepLoading={isGoDeepLoading}
-                        goDeepPhase={goDeepPhase}
-                        goDeepProgress={goDeepProgress}
-                        goDeepAnalysis={goDeepAnalysis}
-                        goDeepComplete={goDeepComplete}
-                        goDeepError={goDeepError}
-                        goDeepFileName={goDeepFileName ?? activeFileName}
-                        documentTopics={documentTopics}
-                        onGoDeeper={handleGoDeeper}
-                        onTopicsContinue={handleTopicsContinue}
-                        depthLevel={goDeepDepthLevel}
-                        onDepthLevelChange={setGoDeepDepthLevel}
-                        isTechResearchLoading={isTechResearchLoading}
-                        techResearchPhase={techResearchPhase}
-                        techResearchComplete={techResearchComplete}
-                        techResearchError={techResearchError}
-                        techResearchFileName={techResearchFileName}
-                        techResearchQuery={techResearchQuery}
-                        isPlanLoading={isPlanLoading}
-                        planPhase={planPhase}
-                        planComplete={planComplete}
-                        planError={planError}
-                        planFileName={planFileName}
-                        planQuery={planQuery}
                         isCreateLoading={isCreateLoading}
                         createPhase={createPhase}
                         createComplete={createComplete}
@@ -703,21 +425,16 @@ export function AIChatDialog({
                         createFileName={createFileName}
                         createQuery={createQuery}
                         mode={mode}
-                        sourceFetchProgress={sourceFetchProgress}
-                        isWebSearchEnabled={isWebSearchEnabled}
                         hasDiffTab={hasDiffTab}
                         loadingDisplayText={loadingDisplayText}
-                        error={error}
+                        askError={askError}
                         editModeError={editModeError}
-                        researchError={researchError}
                         messagesEndRef={messagesEndRef}
                     />
 
                     <FileAttachmentsList
                         files={attachedFiles}
-                        glowingFile={glowingFile}
                         onRemove={onRemoveAttachedFile}
-                        onToggleContextDoc={onToggleContextDoc}
                     />
 
                     <MessageInput
@@ -727,23 +444,17 @@ export function AIChatDialog({
                         models={models}
                         selectedModel={selectedModel}
                         isLoadingModels={isLoadingModels}
-                        isLoading={isLoading}
+                        isAskLoading={isAskLoading}
                         isEditLoading={isEditLoading}
-                        isResearchLoading={isResearchLoading}
-                        isTechResearchLoading={isTechResearchLoading}
-                        isPlanLoading={isPlanLoading}
                         isCreateLoading={isCreateLoading}
                         hasDiffTab={hasDiffTab}
                         hasActiveRequest={hasActiveRequest}
                         openFiles={editorState.openFiles}
                         attachedFiles={attachedFiles}
-                        researchDepthLevel={researchDepthLevel}
                         onModeChange={handleModeChange}
                         onModelChange={handleModelChange}
-                        onResearchDepthLevelChange={handleResearchDepthLevelChange}
                         onAttachFromDisk={handleAttachFromDisk}
                         onToggleFileAttachment={onToggleFileAttachment}
-                        onToggleContextDoc={onToggleContextDoc}
                         onInputChange={setInputValue}
                         onSend={handleSendMessage}
                         onCancel={handleCancelRequest}

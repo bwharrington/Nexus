@@ -267,69 +267,6 @@ function AppContent() {
     // AI Chat attached files state (lifted here so TabBar can also access it)
     const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
 
-    // Tracks whether the context doc was enabled/disabled so the preference is
-    // preserved when the active file changes and the old one gets demoted.
-    const contextDocEnabledRef = useRef(true);
-
-    // Keep the context doc chip in sync with the active file at all times,
-    // not just when the AI chat dialog is open.
-    useEffect(() => {
-        const activeFile = state.activeFileId
-            ? state.openFiles.find(f => f.id === state.activeFileId)
-            : null;
-
-        const isValidContextFile = activeFile &&
-            activeFile.path &&
-            (activeFile.fileType === 'markdown' || activeFile.fileType === 'text');
-
-        setAttachedFiles(prev => {
-            const currentContextDoc = prev.find(f => f.isContextDoc);
-            // Remove manual chips for files that are no longer open
-            const openPaths = new Set(state.openFiles.map(f => f.path).filter(Boolean));
-            const manualFiles = prev.filter(f => !f.isContextDoc && openPaths.has(f.path));
-
-            if (!isValidContextFile) {
-                if (!currentContextDoc) return prev;
-                const demoted: AttachedFile = {
-                    name: currentContextDoc.name,
-                    path: currentContextDoc.path,
-                    type: currentContextDoc.type,
-                    size: currentContextDoc.size,
-                };
-                return [...manualFiles, demoted];
-            }
-
-            if (currentContextDoc?.path === activeFile.path) return prev;
-
-            if (currentContextDoc) {
-                contextDocEnabledRef.current = currentContextDoc.enabled !== false;
-            }
-
-            const newContextDoc: AttachedFile = {
-                name: activeFile.name,
-                path: activeFile.path!,
-                type: activeFile.fileType,
-                size: 0,
-                isContextDoc: true,
-                enabled: contextDocEnabledRef.current,
-            };
-
-            const deduplicatedManual = manualFiles.filter(f => f.path !== activeFile.path);
-
-            if (currentContextDoc) {
-                const demoted: AttachedFile = {
-                    name: currentContextDoc.name,
-                    path: currentContextDoc.path,
-                    type: currentContextDoc.type,
-                    size: currentContextDoc.size,
-                };
-                return [newContextDoc, ...deduplicatedManual, demoted];
-            }
-
-            return [newContextDoc, ...deduplicatedManual];
-        });
-    }, [state.activeFileId, state.openFiles]);
-
     const handleAddAttachedFiles = useCallback((newFiles: AttachedFile[]) => {
         setAttachedFiles(prev => [...prev, ...newFiles]);
     }, []);
@@ -342,11 +279,9 @@ function AppContent() {
         const filePath = file.path;
         if (!filePath) return;
         setAttachedFiles(prev => {
-            // Never add a duplicate if the file is already the active context doc
-            if (prev.some(f => f.path === filePath && f.isContextDoc)) return prev;
-            const existing = prev.find(f => f.path === filePath && !f.isContextDoc);
+            const existing = prev.find(f => f.path === filePath);
             if (existing) {
-                return prev.filter(f => f !== existing);
+                return prev.filter(f => f.path !== filePath);
             }
             const newAttachment: AttachedFile = {
                 name: file.name,
@@ -358,14 +293,6 @@ function AppContent() {
         });
     }, []);
 
-    const handleToggleContextDoc = useCallback((filePath: string) => {
-        setAttachedFiles(prev => prev.map(f =>
-            f.path === filePath && f.isContextDoc
-                ? { ...f, enabled: !f.enabled }
-                : f
-        ));
-    }, []);
-
     const attachedFilePaths = useMemo(
         () => new Set(attachedFiles.map(f => f.path)),
         [attachedFiles],
@@ -375,13 +302,6 @@ function AppContent() {
         setAttachedFiles(prev => {
             const existing = prev.find(f => f.path === filePath);
             if (existing) {
-                if (existing.isContextDoc) {
-                    return prev.map(f =>
-                        f.path === filePath && f.isContextDoc
-                            ? { ...f, enabled: !f.enabled }
-                            : f
-                    );
-                }
                 return prev.filter(f => f.path !== filePath);
             }
             const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
@@ -393,6 +313,20 @@ function AppContent() {
                 size: 0,
             };
             return [...prev, newAttachment];
+        });
+    }, []);
+
+    const handleBulkAttachFromTree = useCallback((files: Array<{ path: string; name: string }>) => {
+        setAttachedFiles(prev => {
+            const existingPaths = new Set(prev.map(f => f.path));
+            const newAttachments = files
+                .filter(f => !existingPaths.has(f.path))
+                .map(f => {
+                    const ext = f.name.split('.').pop()?.toLowerCase() ?? '';
+                    const type = ['rst', 'rest'].includes(ext) ? 'rst' : ['txt'].includes(ext) ? 'text' : 'markdown';
+                    return { name: f.name, path: f.path, type, size: 0 } as AttachedFile;
+                });
+            return [...prev, ...newAttachments];
         });
     }, []);
 
@@ -770,7 +704,6 @@ function AppContent() {
             <TabBar
                 attachedFiles={attachedFiles}
                 onToggleFileAttachment={handleToggleFileAttachment}
-                onToggleContextDoc={handleToggleContextDoc}
             />
             <MainContent ref={mainContentRef}>
                 <FileDirectoryPanel sx={{ width: fileDirWidth, display: fileDirOpen ? undefined : 'none' }}>
@@ -778,6 +711,7 @@ function AppContent() {
                         directories={fileDirectories.directories}
                         attachedFilePaths={attachedFilePaths}
                         onToggleNexusAttachment={handleToggleNexusAttachmentFromTree}
+                        onAttachFiles={handleBulkAttachFromTree}
                         onOpenFolder={fileDirectories.openFolder}
                     />
                 </FileDirectoryPanel>
@@ -801,7 +735,6 @@ function AppContent() {
                         onAddAttachedFiles={handleAddAttachedFiles}
                         onRemoveAttachedFile={handleRemoveAttachedFile}
                         onToggleFileAttachment={handleToggleFileAttachment}
-                        onToggleContextDoc={handleToggleContextDoc}
                     />
                 </DockedAIPanel>
                 <SettingsDialog open={settingsOpen} onClose={handleCloseSettings} />
