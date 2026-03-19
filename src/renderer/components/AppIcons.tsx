@@ -70,6 +70,7 @@ import {
     PanelLeftOpen,
     PanelLeftClose,
     FolderInput,
+    Sparkles,
 } from 'lucide-react';
 
 type MuiFontSize = 'inherit' | 'small' | 'medium' | 'large';
@@ -212,3 +213,4 @@ export const FilePlusIcon = createIcon(FilePlus);
 export const PanelLeftOpenIcon = createIcon(PanelLeftOpen);
 export const PanelLeftCloseIcon = createIcon(PanelLeftClose);
 export const FolderInputIcon = createIcon(FolderInput);
+export const CreateIcon = createIcon(Sparkles);

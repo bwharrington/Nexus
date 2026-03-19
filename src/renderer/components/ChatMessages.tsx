@@ -13,6 +13,8 @@ import { TechResearchProgress } from './TechResearchProgress';
 import type { TechResearchPhase } from '../hooks/useAITechResearch';
 import { PlanProgress } from './PlanProgress';
 import type { PlanPhase } from '../hooks/useAIPlan';
+import { CreateProgress } from './CreateProgress';
+import type { CreatePhase } from '../hooks/useAICreate';
 import type { AIChatMode, SourceFetchProgress } from '../types/global';
 
 const MessagesContainer = styled(Box)(({ theme }) => ({
@@ -226,6 +228,12 @@ interface ChatMessagesProps {
     planError: string | null;
     planFileName: string | null;
     planQuery: string | null;
+    isCreateLoading: boolean;
+    createPhase: CreatePhase;
+    createComplete: boolean;
+    createError: string | null;
+    createFileName: string | null;
+    createQuery: string | null;
     mode: AIChatMode;
     sourceFetchProgress?: SourceFetchProgress[];
     isWebSearchEnabled?: boolean;
@@ -271,6 +279,12 @@ export function ChatMessages({
     planError,
     planFileName,
     planQuery,
+    isCreateLoading,
+    createPhase,
+    createComplete,
+    createError,
+    createFileName,
+    createQuery,
     mode,
     sourceFetchProgress,
     isWebSearchEnabled,
@@ -285,7 +299,7 @@ export function ChatMessages({
         DIFF_REVIEW_MESSAGES[Math.floor(Math.random() * DIFF_REVIEW_MESSAGES.length)]
     );
 
-    const showGreeting = messages.length === 0 && !isLoading && !isEditLoading && !isResearchLoading && !isGoDeepLoading && !goDeepComplete && !researchComplete && !isTechResearchLoading && !techResearchComplete && !isPlanLoading && !planComplete && !hasDiffTab;
+    const showGreeting = messages.length === 0 && !isLoading && !isEditLoading && !isResearchLoading && !isGoDeepLoading && !goDeepComplete && !researchComplete && !isTechResearchLoading && !techResearchComplete && !isPlanLoading && !planComplete && !isCreateLoading && !createComplete && !hasDiffTab;
 
     return (
         <MessagesContainer>
@@ -298,6 +312,15 @@ export function ChatMessages({
                             </Typography>
                             <Typography color="text.secondary" variant="body2">
                                 Describe a project, feature, or task you want to plan. The AI will analyze your request, optionally search the web for relevant context, and generate a structured plan document with objectives, work breakdown, risk assessment, and next steps.
+                            </Typography>
+                        </Box>
+                    ) : mode === 'create' ? (
+                        <Box sx={{ textAlign: 'center' }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                                Create Mode
+                            </Typography>
+                            <Typography color="text.secondary" variant="body2">
+                                Describe what you want to create — a blog post, README, spec, story, letter, or anything else. Attach context files for richer output. The AI will generate a complete document and open it in a new tab.
                             </Typography>
                         </Box>
                     ) : (
@@ -400,6 +423,28 @@ export function ChatMessages({
             {planError && (
                 <Typography color="error" variant="body2" sx={{ textAlign: 'center' }}>
                     {planError}
+                </Typography>
+            )}
+            {(isCreateLoading || createComplete) && createPhase && (
+                <>
+                    {createQuery && (
+                        <MessageBubble role="user">
+                            <Typography variant="body2">{createQuery}</Typography>
+                        </MessageBubble>
+                    )}
+                    <CreateProgress createPhase={createPhase} />
+                </>
+            )}
+            {createComplete && createFileName && (
+                <DiffTabBanner>
+                    <Typography variant="body2">
+                        Created — {createFileName}
+                    </Typography>
+                </DiffTabBanner>
+            )}
+            {createError && (
+                <Typography color="error" variant="body2" sx={{ textAlign: 'center' }}>
+                    {createError}
                 </Typography>
             )}
             {(researchComplete || goDeepComplete) && !isResearchLoading && !isGoDeepLoading && (

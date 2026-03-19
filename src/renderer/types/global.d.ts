@@ -2,7 +2,7 @@
 
 export type LineEnding = 'CRLF' | 'LF';
 export type ViewMode = 'edit' | 'preview' | 'diff';
-export type AIChatMode = 'chat' | 'edit' | 'research' | 'techresearch' | 'plan';
+export type AIChatMode = 'chat' | 'edit' | 'research' | 'techresearch' | 'plan' | 'create';
 
 export interface IFileReference {
   fileName: string;

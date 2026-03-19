@@ -23,7 +23,11 @@
       "Bash(node -e \":*)",
       "Bash(git -C \"c:/Projects/MarkdownPlus\" status)",
       "Bash(xargs grep -l \"insightforge\\\\|InsightForge\")",
-      "Bash(git mv:*)"
+      "Bash(git mv:*)",
+      "Bash(grep -r \"aura\\\\|Aura\\\\|AURA\" /c/Projects/MarkdownPlus/src --include=*.tsx --include=*.ts)",
+      "Bash(grep -r \"glow\\\\|pulse\\\\|shimmer\\\\|shine\" /c/Projects/MarkdownPlus/src/renderer/components --include=*.tsx)",
+      "Bash(grep -n \"NEW_FILE\\\\|OPEN_FILE\\\\|newFile\" /c/Projects/MarkdownPlus/src/renderer/components/*.tsx)",
+      "Bash(grep -n \"dispatch.*NEW_FILE\\\\|onMenuNew\\\\|newFile\" /c/Projects/MarkdownPlus/src/renderer/**/*.tsx)"
     ]
   }
 }

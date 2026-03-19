@@ -27,6 +27,7 @@ import { useAIResearch } from '../hooks/useAIResearch';
 import { useAIGoDeeper } from '../hooks/useAIGoDeeper';
 import { useAITechResearch } from '../hooks/useAITechResearch';
 import { useAIPlan } from '../hooks/useAIPlan';
+import { useAICreate } from '../hooks/useAICreate';
 import type { GoDeepDepthLevel } from '../hooks/useAIGoDeeper';
 import type { ResearchDepthLevel } from '../hooks/useAIResearch';
 import { extractDocumentTopics } from '../utils/extractDocumentTopics';
@@ -226,6 +227,19 @@ export function AIChatDialog({
     } = useAIPlan();
     const [planQuery, setPlanQuery] = useState<string | null>(null);
 
+    // AI Create hook
+    const {
+        submitCreate,
+        cancelCreate,
+        dismissCreateProgress,
+        isCreateLoading,
+        createError,
+        createPhase,
+        createComplete,
+        createFileName,
+    } = useAICreate();
+    const [createQuery, setCreateQuery] = useState<string | null>(null);
+
     // Rotating loading messages with typewriter effect
     const { displayText: loadingDisplayText } = useEditLoadingMessage(isEditLoading);
 
@@ -278,8 +292,10 @@ export function AIChatDialog({
         dismissGoDeepProgress();
         dismissTechResearchProgress();
         dismissPlanProgress();
+        dismissCreateProgress();
         setTechResearchQuery(null);
         setPlanQuery(null);
+        setCreateQuery(null);
 
         const currentProvider = getProviderForModel(selectedModel);
         if (currentProvider && isProviderRestrictedFromMode(currentProvider, newMode)) {
@@ -289,7 +305,7 @@ export function AIChatDialog({
                 persistConfig({ aiChatMode: newMode, aiChatModel: firstValid.id });
             }
         }
-    }, [persistConfig, dismissResearchProgress, dismissGoDeepProgress, dismissTechResearchProgress, dismissPlanProgress, getProviderForModel, selectedModel, models, setSelectedModel]);
+    }, [persistConfig, dismissResearchProgress, dismissGoDeepProgress, dismissTechResearchProgress, dismissPlanProgress, dismissCreateProgress, getProviderForModel, selectedModel, models, setSelectedModel]);
 
     // Persist model selection
     const handleModelChange = useCallback((newModel: string) => {
@@ -369,8 +385,10 @@ export function AIChatDialog({
         dismissGoDeepProgress();
         dismissTechResearchProgress();
         dismissPlanProgress();
+        dismissCreateProgress();
         setTechResearchQuery(null);
         setPlanQuery(null);
+        setCreateQuery(null);
 
         const currentProvider = getProviderForModel(selectedModel) ?? 'claude';
 
@@ -440,13 +458,31 @@ export function AIChatDialog({
             return;
         }
 
+        // Create mode request
+        if (mode === 'create') {
+            const requestId = `ai-create-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+            try {
+                const request = inputValue;
+                const enabledFilesForCreate = attachedFiles.filter(file =>
+                    !file.isContextDoc || file.enabled !== false
+                );
+                setInputValue('');
+                setCreateQuery(request);
+                dismissCreateProgress();
+                await submitCreate(request, enabledFilesForCreate, currentProvider, selectedModel, requestId);
+            } catch {
+                // Error is handled by the useAICreate hook (createError state)
+            }
+            return;
+        }
+
         // Regular chat mode
         const enabledFiles = attachedFiles.filter(file =>
             !file.isContextDoc || file.enabled !== false
         );
         await sendMessage(enabledFiles.length > 0 ? enabledFiles : undefined);
         setAttachedFiles(prev => prev.filter(file => file.isContextDoc));
-    }, [mode, selectedModel, getProviderForModel, inputValue, researchDepthLevel, requestEdit, submitResearch, submitTechResearch, submitPlan, setInputValue, sendMessage, attachedFiles, dismissResearchProgress, dismissGoDeepProgress, dismissTechResearchProgress, dismissPlanProgress]);
+    }, [mode, selectedModel, getProviderForModel, inputValue, researchDepthLevel, requestEdit, submitResearch, submitTechResearch, submitPlan, submitCreate, setInputValue, sendMessage, attachedFiles, dismissResearchProgress, dismissGoDeepProgress, dismissTechResearchProgress, dismissPlanProgress, dismissCreateProgress]);
 
     const handleGoDeeper = useCallback(async () => {
         const activeFile = editorState.activeFileId
@@ -464,8 +500,10 @@ export function AIChatDialog({
         dismissGoDeepProgress();
         dismissTechResearchProgress();
         dismissPlanProgress();
+        dismissCreateProgress();
         setTechResearchQuery(null);
         setPlanQuery(null);
+        setCreateQuery(null);
 
         try {
             await submitAnalysis(
@@ -480,7 +518,7 @@ export function AIChatDialog({
         } catch {
             // Error handled by hook state (goDeepError)
         }
-    }, [editorState.activeFileId, editorState.openFiles, getProviderForModel, selectedModel, submitAnalysis, dismissResearchProgress, dismissGoDeepProgress, dismissTechResearchProgress, dismissPlanProgress, goDeepDepthLevel]);
+    }, [editorState.activeFileId, editorState.openFiles, getProviderForModel, selectedModel, submitAnalysis, dismissResearchProgress, dismissGoDeepProgress, dismissTechResearchProgress, dismissPlanProgress, dismissCreateProgress, goDeepDepthLevel]);
 
     const handleTopicsContinue = useCallback(async (selectedTopics: string[]) => {
         try {
@@ -529,8 +567,13 @@ export function AIChatDialog({
 
         if (isPlanLoading) {
             await cancelPlan();
+            return;
         }
-    }, [isLoading, isEditLoading, isResearchLoading, isGoDeepLoading, isTechResearchLoading, isPlanLoading, cancelCurrentRequest, cancelResearch, cancelGoDeeper, cancelTechResearch, cancelPlan]);
+
+        if (isCreateLoading) {
+            await cancelCreate();
+        }
+    }, [isLoading, isEditLoading, isResearchLoading, isGoDeepLoading, isTechResearchLoading, isPlanLoading, isCreateLoading, cancelCurrentRequest, cancelResearch, cancelGoDeeper, cancelTechResearch, cancelPlan, cancelCreate]);
 
     const handleClearChatConfirm = useCallback(() => {
         clearChat();
@@ -538,12 +581,14 @@ export function AIChatDialog({
         dismissGoDeepProgress();
         dismissTechResearchProgress();
         dismissPlanProgress();
+        dismissCreateProgress();
         setTechResearchQuery(null);
         setPlanQuery(null);
+        setCreateQuery(null);
         setGoDeepFileName(null);
         setAttachedFiles([]);
         setClearConfirmOpen(false);
-    }, [clearChat, dismissResearchProgress, dismissGoDeepProgress, dismissTechResearchProgress, dismissPlanProgress, setAttachedFiles]);
+    }, [clearChat, dismissResearchProgress, dismissGoDeepProgress, dismissTechResearchProgress, dismissPlanProgress, dismissCreateProgress, setAttachedFiles]);
 
     // Document headings extracted for topic selection (only computed during topic_selection pause)
     // Must be above the early return to satisfy Rules of Hooks
@@ -562,7 +607,21 @@ export function AIChatDialog({
     if (!open) return null;
 
     const hasProviders = models.length > 0 || isLoadingModels;
-    const hasActiveRequest = isLoading || isEditLoading || isResearchLoading || isGoDeepLoading || isTechResearchLoading || isPlanLoading;
+    const hasActiveRequest = isLoading || isEditLoading || isResearchLoading || isGoDeepLoading || isTechResearchLoading || isPlanLoading || isCreateLoading;
+
+    console.log('[AIChatDialog] render:', {
+        hasActiveRequest,
+        isLoading,
+        isEditLoading,
+        isResearchLoading,
+        isGoDeepLoading,
+        isTechResearchLoading,
+        isPlanLoading,
+        isCreateLoading,
+        hasDiffTab,
+        mode,
+        inputValue,
+    });
 
     // The file that would be targeted if the user clicks Go Deeper right now
     const activeFileName = editorState.activeFileId
@@ -637,6 +696,12 @@ export function AIChatDialog({
                         planError={planError}
                         planFileName={planFileName}
                         planQuery={planQuery}
+                        isCreateLoading={isCreateLoading}
+                        createPhase={createPhase}
+                        createComplete={createComplete}
+                        createError={createError}
+                        createFileName={createFileName}
+                        createQuery={createQuery}
                         mode={mode}
                         sourceFetchProgress={sourceFetchProgress}
                         isWebSearchEnabled={isWebSearchEnabled}
@@ -667,6 +732,7 @@ export function AIChatDialog({
                         isResearchLoading={isResearchLoading}
                         isTechResearchLoading={isTechResearchLoading}
                         isPlanLoading={isPlanLoading}
+                        isCreateLoading={isCreateLoading}
                         hasDiffTab={hasDiffTab}
                         hasActiveRequest={hasActiveRequest}
                         openFiles={editorState.openFiles}
