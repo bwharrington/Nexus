@@ -1,25 +1,37 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import { Box, Typography, styled, keyframes } from '@mui/material';
 import type { CreatePhase } from '../hooks/useAICreate';
-import type { WebSearchPhase } from '../hooks/useWebSearch';
 import { useEditLoadingMessage } from '../hooks/useEditLoadingMessage';
 
 type StepStatus = 'pending' | 'active' | 'complete';
 
-const OPTIMIZING_MESSAGES = [
-    'Optimizing search query...',
-    'Refining your question...',
-    'Crafting the perfect query...',
+// ---------------------------------------------------------------------------
+// Message pools for each phase
+// ---------------------------------------------------------------------------
+
+const ANALYZING_MESSAGES = [
+    'Understanding your request...',
+    'Planning the approach...',
+    'Mapping out the document...',
+    'Classifying document type...',
     'Analyzing intent...',
-    'Tuning search terms...',
 ] as const;
 
-const SEARCHING_MESSAGES = [
-    'Searching the web...',
-    'Looking up recent results...',
-    'Fetching live context...',
-    'Scanning relevant pages...',
+const RESEARCHING_MESSAGES = [
+    'Searching for relevant sources...',
+    'Gathering research material...',
+    'Cross-referencing findings...',
+    'Reading key articles...',
+    'Synthesizing research notes...',
     'Pulling fresh data...',
+] as const;
+
+const OUTLINING_MESSAGES = [
+    'Structuring the document...',
+    'Planning sections...',
+    'Mapping research to outline...',
+    'Organizing content flow...',
+    'Building document blueprint...',
 ] as const;
 
 const CREATING_MESSAGES = [
@@ -31,18 +43,33 @@ const CREATING_MESSAGES = [
     'Composing paragraphs...',
 ] as const;
 
+const REVIEWING_MESSAGES = [
+    'Checking for completeness...',
+    'Verifying coverage...',
+    'Final quality check...',
+    'Reviewing against outline...',
+] as const;
+
 const NAMING_MESSAGES = [
     'Generating filename...',
     'Picking a descriptive title...',
     'Naming your document...',
 ] as const;
 
+// ---------------------------------------------------------------------------
+// Step type (matches non-terminal CreatePhase values)
+// ---------------------------------------------------------------------------
+
+type ActiveStep = 'analyzing' | 'researching' | 'outlining' | 'creating' | 'reviewing' | 'naming';
+
 interface PhaseTiming {
     start: number;
     end?: number;
 }
 
-// --- Styled components (same pattern as PlanProgress) ---
+// ---------------------------------------------------------------------------
+// Styled components
+// ---------------------------------------------------------------------------
 
 const pulse = keyframes`
     0%, 100% { opacity: 1; transform: scale(1); }
@@ -152,65 +179,39 @@ const LoadingCursor = styled('span')(({ theme }) => ({
     animation: 'blink 1s step-end infinite',
 }));
 
-// --- Component ---
-
-type ActiveStep = 'optimizing' | 'searching' | 'creating' | 'naming';
-
-interface CreateProgressProps {
-    createPhase: CreatePhase;
-    webSearchPhase?: WebSearchPhase;
-    webSearchEnabled?: boolean;
-}
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function getMessagePool(step: ActiveStep): readonly string[] {
     switch (step) {
-        case 'optimizing': return OPTIMIZING_MESSAGES;
-        case 'searching':  return SEARCHING_MESSAGES;
+        case 'analyzing':  return ANALYZING_MESSAGES;
+        case 'researching': return RESEARCHING_MESSAGES;
+        case 'outlining':  return OUTLINING_MESSAGES;
         case 'creating':   return CREATING_MESSAGES;
+        case 'reviewing':  return REVIEWING_MESSAGES;
         case 'naming':     return NAMING_MESSAGES;
         default:           return CREATING_MESSAGES;
     }
 }
 
-function getActiveStep(webSearchPhase: WebSearchPhase | undefined, createPhase: CreatePhase): ActiveStep | null {
-    if (webSearchPhase === 'optimizing') return 'optimizing';
-    if (webSearchPhase === 'searching') return 'searching';
-    if (createPhase === 'creating') return 'creating';
-    if (createPhase === 'naming') return 'naming';
-    return null;
+function getActiveStep(createPhase: CreatePhase): ActiveStep | null {
+    if (createPhase === 'complete' || createPhase === null) return null;
+    return createPhase as ActiveStep;
 }
 
 function getStepStatus(
     step: ActiveStep,
-    webSearchPhase: WebSearchPhase | undefined,
     createPhase: CreatePhase,
-    webSearchEnabled: boolean,
+    stepOrder: ActiveStep[],
 ): StepStatus {
-    // Web search steps
-    if (step === 'optimizing') {
-        if (!webSearchEnabled) return 'pending';
-        if (webSearchPhase === 'optimizing') return 'active';
-        if (webSearchPhase === 'searching') return 'complete';
-        if (webSearchPhase === null && createPhase !== null) return 'complete';
-        return 'pending';
-    }
-    if (step === 'searching') {
-        if (!webSearchEnabled) return 'pending';
-        if (webSearchPhase === 'optimizing') return 'pending';
-        if (webSearchPhase === 'searching') return 'active';
-        if (webSearchPhase === null && createPhase !== null) return 'complete';
-        return 'pending';
-    }
-
-    // Create-specific steps — use ordered index comparison
-    const createStepOrder: Exclude<CreatePhase, 'complete' | null>[] = ['creating', 'naming'];
-    const stepIndex = createStepOrder.indexOf(step as Exclude<CreatePhase, 'complete' | null>);
-
     if (createPhase === 'complete') return 'complete';
-    if (webSearchPhase !== null) return 'pending'; // still in web search
+    if (createPhase === null) return 'pending';
 
-    const currentIndex = createStepOrder.indexOf(createPhase as Exclude<CreatePhase, 'complete' | null>);
-    if (currentIndex < 0 || stepIndex < 0) return 'pending';
+    const stepIndex = stepOrder.indexOf(step);
+    const currentIndex = stepOrder.indexOf(createPhase as ActiveStep);
+
+    if (stepIndex < 0 || currentIndex < 0) return 'pending';
     if (stepIndex < currentIndex) return 'complete';
     if (stepIndex === currentIndex) return 'active';
     return 'pending';
@@ -221,12 +222,20 @@ function formatElapsed(ms: number): string {
     return `${(ms / 1000).toFixed(1)}s`;
 }
 
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
+interface CreateProgressProps {
+    createPhase: CreatePhase;
+    webSearchEnabled?: boolean;
+}
+
 export const CreateProgress = React.memo(function CreateProgress({
     createPhase,
-    webSearchPhase,
     webSearchEnabled = false,
 }: CreateProgressProps) {
-    const activeStep = getActiveStep(webSearchPhase, createPhase);
+    const activeStep = getActiveStep(createPhase);
     const isWorking = activeStep !== null;
     const messagePool = useMemo(
         () => getMessagePool(activeStep ?? 'creating'),
@@ -236,6 +245,26 @@ export const CreateProgress = React.memo(function CreateProgress({
 
     const timingsRef = useRef<Record<string, PhaseTiming>>({});
     const prevStepRef = useRef<ActiveStep | null>(null);
+
+    // Build step configuration based on mode (quick vs deep)
+    const steps: Array<{ key: ActiveStep; label: string }> = useMemo(() =>
+        webSearchEnabled
+            ? [
+                { key: 'analyzing',  label: 'Analyzing Request' },
+                { key: 'researching', label: 'Researching' },
+                { key: 'outlining',  label: 'Building Outline' },
+                { key: 'creating',   label: 'Writing Document' },
+                { key: 'reviewing',  label: 'Reviewing' },
+                { key: 'naming',     label: 'Naming Document' },
+            ]
+            : [
+                { key: 'analyzing', label: 'Analyzing Request' },
+                { key: 'creating',  label: 'Generating Content' },
+                { key: 'naming',    label: 'Naming Document' },
+            ],
+    [webSearchEnabled]);
+
+    const stepOrder = useMemo(() => steps.map(s => s.key), [steps]);
 
     useEffect(() => {
         const prev = prevStepRef.current;
@@ -247,7 +276,7 @@ export const CreateProgress = React.memo(function CreateProgress({
             }
             if (curr) {
                 // Reset timings at the start of a fresh request
-                if (curr === 'optimizing' || (curr === 'creating' && !webSearchEnabled)) {
+                if (curr === 'analyzing') {
                     timingsRef.current = {};
                 }
                 if (!timingsRef.current[curr]) {
@@ -256,7 +285,7 @@ export const CreateProgress = React.memo(function CreateProgress({
             }
             prevStepRef.current = curr;
         }
-    }, [activeStep, webSearchEnabled]);
+    }, [activeStep]);
 
     const getPhaseElapsed = (phase: string): string | null => {
         const timing = timingsRef.current[phase];
@@ -274,22 +303,13 @@ export const CreateProgress = React.memo(function CreateProgress({
         return formatElapsed(lastEnd - firstStart);
     };
 
-    const steps: Array<{ key: ActiveStep; label: string }> = [
-        ...(webSearchEnabled ? [
-            { key: 'optimizing' as ActiveStep, label: 'Optimizing Query' },
-            { key: 'searching' as ActiveStep, label: 'Searching the Web' },
-        ] : []),
-        { key: 'creating' as ActiveStep, label: 'Generating Content' },
-        { key: 'naming' as ActiveStep, label: 'Naming Document' },
-    ];
-
     const isComplete = createPhase === 'complete';
     const completeStatus: StepStatus = isComplete ? 'complete' : 'pending';
 
     return (
         <ProgressContainer>
             {steps.map((step) => {
-                const status = getStepStatus(step.key, webSearchPhase, createPhase, webSearchEnabled);
+                const status = getStepStatus(step.key, createPhase, stepOrder);
                 const label = step.label;
                 const elapsed = status === 'complete' ? getPhaseElapsed(step.key) : null;
                 const isActive = status === 'active';

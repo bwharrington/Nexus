@@ -2,11 +2,13 @@ import React, { useCallback, useState } from 'react';
 import { Box, TextField, Button, IconButton, CircularProgress, styled, Select, MenuItem, FormControl, ListSubheader, Divider, Tooltip } from '@mui/material';
 import { AttachFileIcon, SendIcon, EditIcon, CreateIcon, GlobeIcon } from './AppIcons';
 import { AttachFilePopover } from './AttachFilePopover';
+import { SpellCheckContextMenu } from './SpellCheckContextMenu';
 import type { AttachedFile } from './FileAttachmentsList';
 import type { AIChatMode } from '../types/global';
 import type { IFile } from '../types';
 import type { AIModelOption } from '../hooks/useAIChat';
 import { isProviderRestrictedFromMode } from '../aiProviderModeRestrictions';
+import { useSpellCheck } from '../hooks/useSpellCheck';
 
 const InputContainer = styled(Box)(({ theme }) => ({
     display: 'flex',
@@ -98,6 +100,7 @@ export function MessageInput({
     onClose,
 }: MessageInputProps) {
     const [attachAnchorEl, setAttachAnchorEl] = useState<HTMLElement | null>(null);
+    const { spellCheckMenu, onSpellReplace, onSpellAddToDictionary, onSpellMenuClose } = useSpellCheck();
 
     // Debug logging for input state
     React.useEffect(() => {
@@ -202,6 +205,7 @@ export function MessageInput({
                 onKeyDown={handleKeyDown}
                 onFocus={handleFocus}
                 onBlur={handleBlur}
+                onContextMenu={(e) => e.preventDefault()}
                 disabled={hasActiveRequest || hasDiffTab}
                 fullWidth
                 slotProps={{
@@ -311,6 +315,12 @@ export function MessageInput({
                 attachedFiles={attachedFiles}
                 onAttachFromDisk={onAttachFromDisk}
                 onToggleFileAttachment={onToggleFileAttachment}
+            />
+            <SpellCheckContextMenu
+                menuState={spellCheckMenu}
+                onReplace={onSpellReplace}
+                onAddToDictionary={onSpellAddToDictionary}
+                onClose={onSpellMenuClose}
             />
         </InputContainer>
     );

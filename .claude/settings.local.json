@@ -29,7 +29,8 @@
       "Bash(grep -n \"NEW_FILE\\\\|OPEN_FILE\\\\|newFile\" /c/Projects/MarkdownPlus/src/renderer/components/*.tsx)",
       "Bash(grep -n \"dispatch.*NEW_FILE\\\\|onMenuNew\\\\|newFile\" /c/Projects/MarkdownPlus/src/renderer/**/*.tsx)",
       "Bash(xargs grep:*)",
-      "Bash(grep -n \"callClaudeApiWithSystemPrompt\\\\|callOpenAIApiWithJsonMode\\\\|callGeminiApiWithJsonMode\" /c/Projects/MarkdownPlus/src/main/services/*.ts)"
+      "Bash(grep -n \"callClaudeApiWithSystemPrompt\\\\|callOpenAIApiWithJsonMode\\\\|callGeminiApiWithJsonMode\" /c/Projects/MarkdownPlus/src/main/services/*.ts)",
+      "Bash(node -e \"try { const p = require\\(''./package.json''\\); console.log\\(''electron:'', p.devDependencies?.electron || p.dependencies?.electron\\); } catch\\(e\\) { console.log\\(e.message\\); }\")"
     ]
   }
 }

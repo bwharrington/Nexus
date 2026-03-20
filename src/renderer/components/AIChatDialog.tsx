@@ -165,7 +165,6 @@ export function AIChatDialog({
         createPhase,
         createComplete,
         createFileName,
-        webSearchPhase: createWebSearchPhase,
     } = useAICreate();
     const [createQuery, setCreateQuery] = useState<string | null>(null);
 
@@ -230,9 +229,12 @@ export function AIChatDialog({
         persistConfig({ aiChatModel: newModel });
     }, [setSelectedModel, persistConfig]);
 
-    // Check Serper key availability once on mount
+    // Check Serper key availability once on mount; enable web search by default if key exists
     useEffect(() => {
-        window.electronAPI.hasSerperKey().then(has => setHasSerperKey(has)).catch(() => {});
+        window.electronAPI.hasSerperKey().then(has => {
+            setHasSerperKey(has);
+            if (has) setWebSearchEnabled(true);
+        }).catch(() => {});
     }, []);
 
     // Focus input and reset session state when dialog opens
@@ -437,7 +439,6 @@ export function AIChatDialog({
                         editWebSearchPhase={editWebSearchPhase}
                         isCreateLoading={isCreateLoading}
                         createPhase={createPhase}
-                        createWebSearchPhase={createWebSearchPhase}
                         createComplete={createComplete}
                         createError={createError}
                         createFileName={createFileName}

@@ -15,3 +15,5 @@ export { useAIProviderCache } from './useAIProviderCache';
 export type { AIProviderCacheValue } from './useAIProviderCache';
 export { useFileDirectories } from './useFileDirectories';
 export type { DirectoryInstance, UseFileDirectoriesReturn } from './useFileDirectories';
+export { useSpellCheck } from './useSpellCheck';
+export type { SpellCheckMenuState } from './useSpellCheck';

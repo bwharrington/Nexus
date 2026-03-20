@@ -200,7 +200,6 @@ interface ChatMessagesProps {
     editWebSearchPhase: WebSearchPhase;
     isCreateLoading: boolean;
     createPhase: CreatePhase;
-    createWebSearchPhase: WebSearchPhase;
     createComplete: boolean;
     createError: string | null;
     createFileName: string | null;
@@ -223,7 +222,6 @@ export function ChatMessages({
     editWebSearchPhase,
     isCreateLoading,
     createPhase,
-    createWebSearchPhase,
     createComplete,
     createError,
     createFileName,
@@ -343,7 +341,6 @@ export function ChatMessages({
                     )}
                     <CreateProgress
                         createPhase={createPhase}
-                        webSearchPhase={createWebSearchPhase}
                         webSearchEnabled={webSearchEnabled}
                     />
                 </>

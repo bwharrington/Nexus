@@ -262,6 +262,16 @@ export interface ElectronAPI {
   hasApiKeyInStorage: (provider: 'xai' | 'claude' | 'openai' | 'gemini' | 'serper') => Promise<boolean>;
   deleteApiKey: (provider: 'xai' | 'claude' | 'openai' | 'gemini' | 'serper') => Promise<{ success: boolean; error?: string }>;
   getApiKeyStatus: () => Promise<{ xai: boolean; claude: boolean; openai: boolean; gemini: boolean; serper: boolean }>;
+
+  // Spellcheck operations
+  onSpellCheckContextMenu: (callback: (data: {
+    misspelledWord: string;
+    dictionarySuggestions: string[];
+    x: number;
+    y: number;
+  }) => void) => () => void;
+  addToDictionary: (word: string) => Promise<void>;
+  replaceMisspelling: (word: string) => Promise<void>;
 }
 
 declare global {

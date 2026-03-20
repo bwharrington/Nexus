@@ -167,6 +167,14 @@ const electronAPI = {
   // Serper web search
   serperSearch: (query: string, numResults?: number) =>
     ipcRenderer.invoke('ai:serper-search', query, numResults),
+
+  // Spellcheck operations
+  onSpellCheckContextMenu: (callback: (data: { misspelledWord: string; dictionarySuggestions: string[]; x: number; y: number }) => void) => {
+    ipcRenderer.on('spellcheck:context-menu', (_event, data) => callback(data));
+    return () => { ipcRenderer.removeAllListeners('spellcheck:context-menu'); };
+  },
+  addToDictionary: (word: string) => ipcRenderer.invoke('spellcheck:add-to-dictionary', word),
+  replaceMisspelling: (word: string) => ipcRenderer.invoke('spellcheck:replace-misspelling', word),
 };
 
 // Expose the API to the renderer process

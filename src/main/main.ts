@@ -1027,6 +1027,16 @@ function registerIpcHandlers() {
             return { success: false, error: error instanceof Error ? error.message : 'Failed to save image' };
         }
     });
+
+    // Spellcheck: add a word to the custom dictionary
+    ipcMain.handle('spellcheck:add-to-dictionary', (_event, word: string) => {
+        mainWindow?.webContents.session.addWordToSpellCheckerDictionary(word);
+    });
+
+    // Spellcheck: replace the last right-clicked misspelled word
+    ipcMain.handle('spellcheck:replace-misspelling', (_event, word: string) => {
+        mainWindow?.webContents.replaceMisspelling(word);
+    });
 }
 
 function createWindow() {
@@ -1042,7 +1052,23 @@ function createWindow() {
             nodeIntegration: false,
             contextIsolation: true,
             preload: path.join(__dirname, 'preload.js'),
+            spellcheck: true,
         },
+    });
+
+    // Configure spellcheck language
+    mainWindow.webContents.session.setSpellCheckerLanguages(['en-US']);
+
+    // Forward spellcheck context-menu data to renderer for custom MUI menu
+    mainWindow.webContents.on('context-menu', (_event, params) => {
+        if (params.misspelledWord) {
+            mainWindow!.webContents.send('spellcheck:context-menu', {
+                misspelledWord: params.misspelledWord,
+                dictionarySuggestions: params.dictionarySuggestions,
+                x: params.x,
+                y: params.y,
+            });
+        }
     });
 
     // Load the index.html file
