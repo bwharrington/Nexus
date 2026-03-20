@@ -237,10 +237,9 @@ export function AIChatDialog({
         }).catch(() => {});
     }, []);
 
-    // Focus input and reset session state when dialog opens
+    // Focus input when dialog opens
     useEffect(() => {
         if (open) {
-            setWebSearchEnabled(false);
             requestAnimationFrame(() => {
                 inputRef.current?.focus();
             });
@@ -375,7 +374,7 @@ export function AIChatDialog({
         dismissCreateProgress();
         setCreateQuery(null);
         setAttachedFiles([]);
-        setWebSearchEnabled(false);
+        setWebSearchEnabled(hasSerperKey);
         setClearConfirmOpen(false);
     }, [clearAsk, dismissCreateProgress, setAttachedFiles]);
 

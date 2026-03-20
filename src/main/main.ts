@@ -1059,9 +1059,13 @@ function createWindow() {
     // Configure spellcheck language
     mainWindow.webContents.session.setSpellCheckerLanguages(['en-US']);
 
-    // Forward spellcheck context-menu data to renderer for custom MUI menu
-    mainWindow.webContents.on('context-menu', (_event, params) => {
+    // Forward spellcheck context-menu data to renderer for custom MUI menu.
+    // event.preventDefault() suppresses the native OS context menu so our MUI
+    // menu can take over. Without it, e.preventDefault() in the renderer would
+    // block Chromium from sending the context-menu request to the main process.
+    mainWindow.webContents.on('context-menu', (event, params) => {
         if (params.misspelledWord) {
+            event.preventDefault();
             mainWindow!.webContents.send('spellcheck:context-menu', {
                 misspelledWord: params.misspelledWord,
                 dictionarySuggestions: params.dictionarySuggestions,

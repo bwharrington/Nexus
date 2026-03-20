@@ -72,6 +72,7 @@ import {
     FolderInput,
     Sparkles,
     Globe,
+    HelpCircle,
 } from 'lucide-react';
 
 type MuiFontSize = 'inherit' | 'small' | 'medium' | 'large';
@@ -216,3 +217,4 @@ export const PanelLeftCloseIcon = createIcon(PanelLeftClose);
 export const FolderInputIcon = createIcon(FolderInput);
 export const CreateIcon = createIcon(Sparkles);
 export const GlobeIcon = createIcon(Globe);
+export const HelpCircleIcon = createIcon(HelpCircle);

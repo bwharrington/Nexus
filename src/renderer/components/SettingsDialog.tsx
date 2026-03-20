@@ -28,6 +28,7 @@ import {
     Button,
     Tabs,
     Tab,
+    Tooltip,
     styled,
 } from '@mui/material';
 import {
@@ -37,6 +38,7 @@ import {
     CheckCircleIcon,
     DeleteIcon,
     RefreshIcon,
+    HelpCircleIcon,
 } from './AppIcons';
 
 import { useSettingsConfig } from '../hooks/useSettingsConfig';
@@ -165,17 +167,47 @@ interface APIKeyInputProps {
     value: string;
     providerStatus?: 'success' | 'error' | 'unchecked';
     isTesting?: boolean;
+    helpTooltip?: string;
+    helpUrl?: string;
     onChange: (value: string) => void;
     onSet: () => void;
     onClear: () => void;
     onTest?: () => void;
 }
 
-function APIKeyInput({ provider, label, hasKey, value, providerStatus, isTesting = false, onChange, onSet, onClear, onTest }: APIKeyInputProps) {
+function APIKeyInput({ provider, label, hasKey, value, providerStatus, isTesting = false, helpTooltip, helpUrl, onChange, onSet, onClear, onTest }: APIKeyInputProps) {
     return (
         <Box sx={{ mb: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
                 <Typography sx={{ fontSize: 13, fontWeight: 500 }}>{label}</Typography>
+                {helpTooltip && (
+                    <Tooltip
+                        arrow
+                        placement="right"
+                        componentsProps={{ tooltip: { sx: { pointerEvents: 'auto' } } }}
+                        title={
+                            <Box>
+                                <Typography sx={{ fontSize: 11 }}>{helpTooltip}</Typography>
+                                {helpUrl && (
+                                    <Typography
+                                        sx={{ fontSize: 11, color: 'primary.light', cursor: 'pointer', textDecoration: 'underline', mt: 0.5 }}
+                                        onClick={(e) => { e.stopPropagation(); void window.electronAPI.openExternal(helpUrl); }}
+                                    >
+                                        {helpUrl}
+                                    </Typography>
+                                )}
+                            </Box>
+                        }
+                    >
+                        <IconButton
+                            size="small"
+                            sx={{ p: 0.25, color: 'text.disabled' }}
+                            onClick={() => helpUrl && void window.electronAPI.openExternal(helpUrl)}
+                        >
+                            <HelpCircleIcon size={14} />
+                        </IconButton>
+                    </Tooltip>
+                )}
                 {hasKey && (
                     <Chip
                         icon={<CheckCircleIcon />}
@@ -674,6 +706,8 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                             value={apiKeyInputs.xai}
                             providerStatus={providerStatuses.xai.status}
                             isTesting={testingProvider === 'xai'}
+                            helpTooltip="Get an xAI API key at console.x.ai"
+                            helpUrl="https://console.x.ai/"
                             onChange={(value) => setApiKeyInputs(prev => ({ ...prev, xai: value }))}
                             onSet={() => handleSetApiKey('xai')}
                             onClear={() => handleClearApiKey('xai')}
@@ -687,6 +721,8 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                             value={apiKeyInputs.claude}
                             providerStatus={providerStatuses.claude.status}
                             isTesting={testingProvider === 'claude'}
+                            helpTooltip="Get a Claude API key at console.anthropic.com"
+                            helpUrl="https://console.anthropic.com/"
                             onChange={(value) => setApiKeyInputs(prev => ({ ...prev, claude: value }))}
                             onSet={() => handleSetApiKey('claude')}
                             onClear={() => handleClearApiKey('claude')}
@@ -700,6 +736,8 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                             value={apiKeyInputs.openai}
                             providerStatus={providerStatuses.openai.status}
                             isTesting={testingProvider === 'openai'}
+                            helpTooltip="Get an OpenAI API key at platform.openai.com/api-keys"
+                            helpUrl="https://platform.openai.com/api-keys"
                             onChange={(value) => setApiKeyInputs(prev => ({ ...prev, openai: value }))}
                             onSet={() => handleSetApiKey('openai')}
                             onClear={() => handleClearApiKey('openai')}
@@ -713,6 +751,8 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                             value={apiKeyInputs.gemini}
                             providerStatus={providerStatuses.gemini.status}
                             isTesting={testingProvider === 'gemini'}
+                            helpTooltip="Get a Gemini API key at aistudio.google.com"
+                            helpUrl="https://aistudio.google.com/app/apikey"
                             onChange={(value) => setApiKeyInputs(prev => ({ ...prev, gemini: value }))}
                             onSet={() => handleSetApiKey('gemini')}
                             onClear={() => handleClearApiKey('gemini')}
@@ -777,7 +817,14 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                         <SectionHeader>Web Search API Key</SectionHeader>
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontSize: 12 }}>
                             Serper provides real-time web search results. An API key enables AI modes to search the web for current context when generating content.
-                            Get a key at <Typography component="span" sx={{ fontSize: 12, color: 'primary.main' }}>serper.dev</Typography>.
+                            Get a free key at{' '}
+                            <Typography
+                                component="span"
+                                sx={{ fontSize: 12, color: 'primary.main', cursor: 'pointer', textDecoration: 'underline' }}
+                                onClick={() => void window.electronAPI.openExternal('https://serper.dev')}
+                            >
+                                serper.dev
+                            </Typography>.
                         </Typography>
 
                         <APIKeyInput
@@ -785,6 +832,8 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                             label="Serper (Web Search)"
                             hasKey={apiKeyStatus.serper}
                             value={apiKeyInputs.serper}
+                            helpTooltip="Sign up and get a free API key at serper.dev"
+                            helpUrl="https://serper.dev"
                             onChange={(value) => setApiKeyInputs(prev => ({ ...prev, serper: value }))}
                             onSet={() => handleSetApiKey('serper')}
                             onClear={() => handleClearApiKey('serper')}

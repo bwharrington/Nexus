@@ -25,6 +25,7 @@ const ControlsRow = styled(Box)({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
+    overflow: 'visible',
 });
 
 const LeftControls = styled(Box)({
@@ -32,7 +33,8 @@ const LeftControls = styled(Box)({
     alignItems: 'center',
     gap: 6,
     minWidth: 0,
-    flexWrap: 'wrap',
+    flexWrap: 'nowrap',
+    overflow: 'visible',
 });
 
 const RightControls = styled(Box)({
@@ -205,7 +207,6 @@ export function MessageInput({
                 onKeyDown={handleKeyDown}
                 onFocus={handleFocus}
                 onBlur={handleBlur}
-                onContextMenu={(e) => e.preventDefault()}
                 disabled={hasActiveRequest || hasDiffTab}
                 fullWidth
                 slotProps={{
