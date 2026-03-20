@@ -145,7 +145,7 @@ export const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ chart }) => {
                 mermaid.initialize({
                     startOnLoad: false,
                     theme: mermaidTheme,
-                    securityLevel: 'loose',
+                    securityLevel: 'strict',
                     fontFamily: 'inherit',
                 });
 

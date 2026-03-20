@@ -295,19 +295,31 @@ export function ChatMessages({
                                         <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
                                             Sources
                                         </Typography>
-                                        {msg.sources.map((src, i) => (
-                                            <Typography key={src.link} variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                                                {i + 1}.{' '}
-                                                <Box
-                                                    component="a"
-                                                    href="#"
-                                                    onClick={(e: React.MouseEvent) => { e.preventDefault(); void window.electronAPI.openExternal(src.link); }}
-                                                    sx={{ color: 'inherit', textDecoration: 'underline', cursor: 'pointer' }}
-                                                >
-                                                    {src.title}
-                                                </Box>
-                                            </Typography>
-                                        ))}
+                                        {msg.sources.map((src, i) => {
+                                            // Only allow http/https links from search results
+                                            let isSafeLink = false;
+                                            try {
+                                                const parsed = new URL(src.link);
+                                                isSafeLink = parsed.protocol === 'http:' || parsed.protocol === 'https:';
+                                            } catch { /* ignore malformed URLs */ }
+                                            return (
+                                                <Typography key={src.link} variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                                    {i + 1}.{' '}
+                                                    {isSafeLink ? (
+                                                        <Box
+                                                            component="a"
+                                                            href="#"
+                                                            onClick={(e: React.MouseEvent) => { e.preventDefault(); void window.electronAPI.openExternal(src.link); }}
+                                                            sx={{ color: 'inherit', textDecoration: 'underline', cursor: 'pointer' }}
+                                                        >
+                                                            {src.title}
+                                                        </Box>
+                                                    ) : (
+                                                        src.title
+                                                    )}
+                                                </Typography>
+                                            );
+                                        })}
                                     </SourcesSection>
                                 )}
                                 <ResponseCopyButton content={msg.content} />

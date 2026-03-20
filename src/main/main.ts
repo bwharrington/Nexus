@@ -12,9 +12,10 @@ import { listClaudeModels, hasApiKey as hasClaudeApiKey } from './services/claud
 import { listOpenAIModels, hasApiKey as hasOpenAIApiKey } from './services/openaiApi';
 import { listGeminiModels, hasApiKey as hasGeminiApiKey } from './services/geminiApi';
 
-// Load .env file for development (optional - will be ignored if not present)
-// In production builds, this file typically won't exist, and secure storage will be used
-dotenv.config();
+// Load .env file in development only — never in packaged production builds
+if (!app.isPackaged) {
+    dotenv.config();
+}
 
 let mainWindow: BrowserWindow | null;
 let pendingFilesToOpen: string[] = [];
@@ -734,8 +735,18 @@ function registerIpcHandlers() {
         shell.showItemInFolder(filePath);
     });
 
-    // Shell: Open external URL
+    // Shell: Open external URL — only allow http/https to prevent javascript:, file://, etc.
     ipcMain.handle('shell:open-external', async (_event, url: string) => {
+        try {
+            const parsed = new URL(url);
+            if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+                log('Blocked unsafe protocol in shell:open-external', { protocol: parsed.protocol });
+                return;
+            }
+        } catch {
+            log('Blocked malformed URL in shell:open-external');
+            return;
+        }
         await shell.openExternal(url);
     });
 
@@ -1046,6 +1057,8 @@ function createWindow() {
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
+            sandbox: true,
+            webSecurity: true,
             preload: path.join(__dirname, 'preload.js'),
             spellcheck: true,
         },
@@ -1053,6 +1066,55 @@ function createWindow() {
 
     // Configure spellcheck language
     mainWindow.webContents.session.setSpellCheckerLanguages(['en-US']);
+
+    // Block in-app navigation to external URLs — all external links must go through shell.openExternal
+    mainWindow.webContents.on('will-navigate', (event, navigationUrl) => {
+        try {
+            const parsed = new URL(navigationUrl);
+            if (parsed.protocol !== 'file:') {
+                event.preventDefault();
+                log('Blocked external navigation attempt', { protocol: parsed.protocol });
+            }
+        } catch {
+            event.preventDefault();
+        }
+    });
+
+    // Block window.open() — no new Electron windows should be created from renderer content
+    mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+        // Open http/https links in the system browser instead
+        try {
+            const parsed = new URL(url);
+            if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+                void shell.openExternal(url);
+            }
+        } catch { /* ignore malformed URLs */ }
+        return { action: 'deny' };
+    });
+
+    // Content Security Policy — renderer should not load external scripts or make direct network requests.
+    // MUI requires 'unsafe-inline' for styles; images allow data: URIs and file:// for local assets,
+    // plus https: for external images embedded in user Markdown.
+    mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+        callback({
+            responseHeaders: {
+                ...details.responseHeaders,
+                'Content-Security-Policy': [
+                    [
+                        "default-src 'self'",
+                        "script-src 'self'",
+                        "style-src 'self' 'unsafe-inline'",
+                        "img-src 'self' data: file: https:",
+                        "font-src 'self' data:",
+                        "connect-src 'self'",
+                        "object-src 'none'",
+                        "base-uri 'self'",
+                        "form-action 'none'",
+                    ].join('; '),
+                ],
+            },
+        });
+    });
 
     // Forward spellcheck context-menu data to renderer for custom MUI menu.
     // event.preventDefault() suppresses the native OS context menu so our MUI
@@ -1073,18 +1135,20 @@ function createWindow() {
     // Load the index.html file
     mainWindow.loadFile(path.join(__dirname, 'index.html'));
 
-    // Open the DevTools in development mode or if saved in config
-    if (process.env.NODE_ENV === 'development') {
-        log('Opening DevTools', { isDev: true });
-        mainWindow.webContents.openDevTools();
-    } else {
-        // Check config for DevTools state
-        loadConfig().then(config => {
-            if (config.devToolsOpen && mainWindow && !mainWindow.isDestroyed()) {
-                log('Opening DevTools from config', { devToolsOpen: config.devToolsOpen });
-                mainWindow.webContents.openDevTools();
-            }
-        });
+    // Open DevTools in development mode only — never auto-open in packaged production builds
+    if (!app.isPackaged) {
+        if (process.env.NODE_ENV === 'development') {
+            log('Opening DevTools', { isDev: true });
+            mainWindow.webContents.openDevTools();
+        } else {
+            // Unpackaged but not NODE_ENV=development (e.g. electron . run from CLI): respect config
+            loadConfig().then(config => {
+                if (config.devToolsOpen && mainWindow && !mainWindow.isDestroyed()) {
+                    log('Opening DevTools from config', { devToolsOpen: config.devToolsOpen });
+                    mainWindow.webContents.openDevTools();
+                }
+            });
+        }
     }
 
     // Listen for DevTools open/close events (for native UI interactions)

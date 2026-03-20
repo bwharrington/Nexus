@@ -35,32 +35,48 @@ function parseRst(content: string): ParsedElement[] {
     };
 
     // Parse inline formatting
+    // Escape HTML special characters to prevent XSS when content is injected via dangerouslySetInnerHTML
+    const escapeHtml = (str: string): string =>
+        str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+    // Validate a URL, returning '#' for any non-http/https scheme to block javascript: etc.
+    const safeLinkHref = (url: string): string => {
+        try {
+            const parsed = new URL(url.trim());
+            return (parsed.protocol === 'http:' || parsed.protocol === 'https:') ? parsed.href : '#';
+        } catch {
+            return '#';
+        }
+    };
+
     const parseInline = (text: string): string => {
         // Bold: **text** or :strong:`text`
-        text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-        text = text.replace(/:strong:`([^`]+)`/g, '<strong>$1</strong>');
+        text = text.replace(/\*\*([^*]+)\*\*/g, (_, t: string) => `<strong>${escapeHtml(t)}</strong>`);
+        text = text.replace(/:strong:`([^`]+)`/g, (_, t: string) => `<strong>${escapeHtml(t)}</strong>`);
 
         // Italic: *text* or :emphasis:`text`
-        text = text.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>');
-        text = text.replace(/:emphasis:`([^`]+)`/g, '<em>$1</em>');
+        text = text.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, (_, t: string) => `<em>${escapeHtml(t)}</em>`);
+        text = text.replace(/:emphasis:`([^`]+)`/g, (_, t: string) => `<em>${escapeHtml(t)}</em>`);
 
         // Inline code: ``text``
-        text = text.replace(/``([^`]+)``/g, '<code>$1</code>');
+        text = text.replace(/``([^`]+)``/g, (_, t: string) => `<code>${escapeHtml(t)}</code>`);
 
         // Inline literals: `text`
-        text = text.replace(/(?<!`)`([^`]+)`(?!`)/g, '<code>$1</code>');
+        text = text.replace(/(?<!`)`([^`]+)`(?!`)/g, (_, t: string) => `<code>${escapeHtml(t)}</code>`);
 
-        // Links: `text <url>`_ or `text`_
-        text = text.replace(/`([^<]+)\s+<([^>]+)>`_/g, '<a href="$2">$1</a>');
+        // Links: `text <url>`_ — validate URL scheme, escape display text
+        text = text.replace(/`([^<]+)\s+<([^>]+)>`_/g, (_match, linkText: string, url: string) =>
+            `<a href="${safeLinkHref(url)}">${escapeHtml(linkText)}</a>`
+        );
 
         // Reference links: :ref:`text`
-        text = text.replace(/:ref:`([^`]+)`/g, '<em>$1</em>');
+        text = text.replace(/:ref:`([^`]+)`/g, (_, t: string) => `<em>${escapeHtml(t)}</em>`);
 
         // Subscript: :sub:`text`
-        text = text.replace(/:sub:`([^`]+)`/g, '<sub>$1</sub>');
+        text = text.replace(/:sub:`([^`]+)`/g, (_, t: string) => `<sub>${escapeHtml(t)}</sub>`);
 
         // Superscript: :sup:`text`
-        text = text.replace(/:sup:`([^`]+)`/g, '<sup>$1</sup>');
+        text = text.replace(/:sup:`([^`]+)`/g, (_, t: string) => `<sup>${escapeHtml(t)}</sup>`);
 
         return text;
     };
