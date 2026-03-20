@@ -149,125 +149,120 @@ async function syncAIModelsConfig() {
             config.aiModels = {};
         }
 
-        let configUpdated = false;
-
-        // Sync xAI models
-        if (hasXaiApiKey()) {
+        // Each provider sync is independent — run all in parallel.
+        // Each returns true if it modified config, false otherwise.
+        async function syncXai(): Promise<boolean> {
+            if (!hasXaiApiKey()) return false;
             try {
                 const models = await listXAIModels();
-                if (!config.aiModels.xai) {
-                    config.aiModels.xai = {};
-                    configUpdated = true;
-                }
-
+                let changed = false;
+                if (!config.aiModels!.xai) { config.aiModels!.xai = {}; changed = true; }
                 for (const model of models) {
-                    if (!config.aiModels.xai[model.id]) {
-                        config.aiModels.xai[model.id] = { enabled: true };
-                        configUpdated = true;
+                    if (!config.aiModels!.xai![model.id]) {
+                        config.aiModels!.xai![model.id] = { enabled: true };
+                        changed = true;
                         log('Added new xAI model to config', { modelId: model.id });
                     }
                 }
-
                 // Remove models that no longer pass the filter (e.g. image/video models)
-                const allowedXaiIds = new Set(models.map(m => m.id));
-                for (const modelId of Object.keys(config.aiModels.xai)) {
-                    if (!allowedXaiIds.has(modelId)) {
-                        delete config.aiModels.xai[modelId];
-                        configUpdated = true;
+                const allowedIds = new Set(models.map(m => m.id));
+                for (const modelId of Object.keys(config.aiModels!.xai!)) {
+                    if (!allowedIds.has(modelId)) {
+                        delete config.aiModels!.xai![modelId];
+                        changed = true;
                         log('Removed filtered-out xAI model from config', { modelId });
                     }
                 }
+                return changed;
             } catch (error) {
                 logError('Failed to sync xAI models', error as Error);
+                return false;
             }
         }
 
-        // Sync Claude models
-        if (hasClaudeApiKey()) {
+        async function syncClaude(): Promise<boolean> {
+            if (!hasClaudeApiKey()) return false;
             try {
                 const models = await listClaudeModels();
-                if (!config.aiModels.claude) {
-                    config.aiModels.claude = {};
-                    configUpdated = true;
-                }
-
+                let changed = false;
+                if (!config.aiModels!.claude) { config.aiModels!.claude = {}; changed = true; }
                 for (const model of models) {
-                    if (!config.aiModels.claude[model.id]) {
-                        config.aiModels.claude[model.id] = { enabled: true };
-                        configUpdated = true;
+                    if (!config.aiModels!.claude![model.id]) {
+                        config.aiModels!.claude![model.id] = { enabled: true };
+                        changed = true;
                         log('Added new Claude model to config', { modelId: model.id });
                     }
                 }
-
                 // Remove models that no longer pass the filter (e.g. old claude-3- base generation)
-                const allowedClaudeIds = new Set(models.map(m => m.id));
-                for (const modelId of Object.keys(config.aiModels.claude)) {
-                    if (!allowedClaudeIds.has(modelId)) {
-                        delete config.aiModels.claude[modelId];
-                        configUpdated = true;
+                const allowedIds = new Set(models.map(m => m.id));
+                for (const modelId of Object.keys(config.aiModels!.claude!)) {
+                    if (!allowedIds.has(modelId)) {
+                        delete config.aiModels!.claude![modelId];
+                        changed = true;
                         log('Removed filtered-out Claude model from config', { modelId });
                     }
                 }
+                return changed;
             } catch (error) {
                 logError('Failed to sync Claude models', error as Error);
+                return false;
             }
         }
 
-        // Sync OpenAI models
-        if (hasOpenAIApiKey()) {
+        async function syncOpenAI(): Promise<boolean> {
+            if (!hasOpenAIApiKey()) return false;
             try {
                 const models = await listOpenAIModels();
-                if (!config.aiModels.openai) {
-                    config.aiModels.openai = {};
-                    configUpdated = true;
-                }
-
+                let changed = false;
+                if (!config.aiModels!.openai) { config.aiModels!.openai = {}; changed = true; }
                 for (const model of models) {
-                    if (!config.aiModels.openai[model.id]) {
-                        config.aiModels.openai[model.id] = { enabled: true };
-                        configUpdated = true;
+                    if (!config.aiModels!.openai![model.id]) {
+                        config.aiModels!.openai![model.id] = { enabled: true };
+                        changed = true;
                         log('Added new OpenAI model to config', { modelId: model.id });
                     }
                 }
+                return changed;
             } catch (error) {
                 logError('Failed to sync OpenAI models', error as Error);
+                return false;
             }
         }
 
-        // Sync Gemini models
-        if (hasGeminiApiKey()) {
+        async function syncGemini(): Promise<boolean> {
+            if (!hasGeminiApiKey()) return false;
             try {
                 const models = await listGeminiModels();
-                if (!config.aiModels.gemini) {
-                    config.aiModels.gemini = {};
-                    configUpdated = true;
-                }
-
-                // Add any new models not yet in config
+                let changed = false;
+                if (!config.aiModels!.gemini) { config.aiModels!.gemini = {}; changed = true; }
                 for (const model of models) {
-                    if (!config.aiModels.gemini[model.id]) {
-                        config.aiModels.gemini[model.id] = { enabled: true };
-                        configUpdated = true;
+                    if (!config.aiModels!.gemini![model.id]) {
+                        config.aiModels!.gemini![model.id] = { enabled: true };
+                        changed = true;
                         log('Added new Gemini model to config', { modelId: model.id });
                     }
                 }
-
                 // Remove models that no longer pass the filter (e.g. previously synced
                 // image-only or deprecated models that were since filtered out)
                 const allowedIds = new Set(models.map(m => m.id));
-                for (const modelId of Object.keys(config.aiModels.gemini)) {
+                for (const modelId of Object.keys(config.aiModels!.gemini!)) {
                     if (!allowedIds.has(modelId)) {
-                        delete config.aiModels.gemini[modelId];
-                        configUpdated = true;
+                        delete config.aiModels!.gemini![modelId];
+                        changed = true;
                         log('Removed filtered-out Gemini model from config', { modelId });
                     }
                 }
+                return changed;
             } catch (error) {
                 logError('Failed to sync Gemini models', error as Error);
+                return false;
             }
         }
 
-        // Save config if it was updated
+        const results = await Promise.allSettled([syncXai(), syncClaude(), syncOpenAI(), syncGemini()]);
+        const configUpdated = results.some(r => r.status === 'fulfilled' && r.value === true);
+
+        // Save config if any provider updated it
         if (configUpdated) {
             await saveConfig(config);
             log('AI models config synced and saved');

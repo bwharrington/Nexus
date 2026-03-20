@@ -593,13 +593,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     }
 }
 
-// Context
-interface EditorContextType {
-    state: EditorState;
-    dispatch: React.Dispatch<EditorAction>;
-}
-
-const EditorContext = createContext<EditorContextType | null>(null);
+// Contexts — split so dispatch-only consumers don't re-render on every state change
+const EditorStateContext = createContext<EditorState | null>(null);
+const EditorDispatchContext = createContext<React.Dispatch<EditorAction> | null>(null);
 
 // Provider component
 interface EditorProviderProps {
@@ -733,28 +729,30 @@ export function EditorProvider({ children }: EditorProviderProps) {
     }, [state.openFiles]);
 
     return (
-        <EditorContext.Provider value={{ state, dispatch }}>
-            {children}
-        </EditorContext.Provider>
+        <EditorStateContext.Provider value={state}>
+            <EditorDispatchContext.Provider value={dispatch}>
+                {children}
+            </EditorDispatchContext.Provider>
+        </EditorStateContext.Provider>
     );
 }
 
 // Hook to use editor state
 export function useEditorState() {
-    const context = useContext(EditorContext);
-    if (!context) {
+    const state = useContext(EditorStateContext);
+    if (!state) {
         throw new Error('useEditorState must be used within EditorProvider');
     }
-    return context.state;
+    return state;
 }
 
 // Hook to use editor dispatch
 export function useEditorDispatch() {
-    const context = useContext(EditorContext);
-    if (!context) {
+    const dispatch = useContext(EditorDispatchContext);
+    if (!dispatch) {
         throw new Error('useEditorDispatch must be used within EditorProvider');
     }
-    return context.dispatch;
+    return dispatch;
 }
 
 // Hook to get active file

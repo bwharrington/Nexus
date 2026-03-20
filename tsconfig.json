@@ -12,7 +12,10 @@
     },
     "jsx": "react",
     "strict": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "incremental": true,
+    "tsBuildInfoFile": ".tsbuildinfo",
+    "skipLibCheck": true
   },
   "include": [
     "src/**/*"

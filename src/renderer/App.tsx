@@ -1,13 +1,17 @@
-import React, { useEffect, useState, useCallback, useRef, useMemo, Component } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo, Component, Suspense, lazy } from 'react';
 import { CssBaseline, Box, Button, styled, Typography } from '@mui/material';
 import { EditorProvider, useEditorState, useEditorDispatch, ThemeProvider, AIProviderCacheProvider } from './contexts';
-import { Toolbar, TabBar, EditorPane, EmptyState, NotificationSnackbar, AIChatDialog, SettingsDialog, FileDirectoryContainer } from './components';
+import { Toolbar, TabBar, EditorPane, EmptyState, NotificationSnackbar, FileDirectoryContainer } from './components';
+
+const AIChatDialog = lazy(() => import('./components/AIChatDialog').then(m => ({ default: m.AIChatDialog })));
+const SettingsDialog = lazy(() => import('./components/SettingsDialog').then(m => ({ default: m.SettingsDialog })));
 import { useWindowTitle, useFileOperations, useExternalFileWatcher, getFileType, useFileDirectories } from './hooks';
 import { SplitDivider } from './styles/editor.styles';
 import type { AttachedFile } from './components/FileAttachmentsList';
 import type { IFile } from './types';
 
-// Intercept console methods and send to main process
+// Intercept console methods and forward to main process log file.
+// error/warn are sent immediately; log/info are batched to reduce IPC traffic.
 const originalConsole = {
     log: console.log,
     warn: console.warn,
@@ -15,11 +19,36 @@ const originalConsole = {
     info: console.info,
 };
 
+let logBatch: Array<{ level: string; args: unknown[] }> = [];
+let logFlushTimer: ReturnType<typeof setTimeout> | null = null;
+
+function flushLogBatch() {
+    logFlushTimer = null;
+    const entries = logBatch;
+    logBatch = [];
+    for (const entry of entries) {
+        window.electronAPI.sendConsoleLog(entry.level, ...entry.args);
+    }
+}
+
+function bufferLog(level: string, args: unknown[]) {
+    logBatch.push({ level, args });
+    if (!logFlushTimer) {
+        logFlushTimer = setTimeout(flushLogBatch, 100);
+    }
+}
+
 console.log = (...args: unknown[]) => {
     originalConsole.log(...args);
-    window.electronAPI.sendConsoleLog('log', ...args);
+    bufferLog('log', args);
 };
 
+console.info = (...args: unknown[]) => {
+    originalConsole.info(...args);
+    bufferLog('info', args);
+};
+
+// Errors and warnings sent immediately — timing matters for diagnostics
 console.warn = (...args: unknown[]) => {
     originalConsole.warn(...args);
     window.electronAPI.sendConsoleLog('warn', ...args);
@@ -28,11 +57,6 @@ console.warn = (...args: unknown[]) => {
 console.error = (...args: unknown[]) => {
     originalConsole.error(...args);
     window.electronAPI.sendConsoleLog('error', ...args);
-};
-
-console.info = (...args: unknown[]) => {
-    originalConsole.info(...args);
-    window.electronAPI.sendConsoleLog('info', ...args);
 };
 
 // Global renderer error handlers — forward uncaught errors to the main process log
@@ -727,17 +751,21 @@ function AppContent() {
                     sx={{ flexShrink: 0, zIndex: 2, display: aiChatOpen ? undefined : 'none' }}
                 />
                 <DockedAIPanel sx={{ width: aiDockWidth, display: aiChatOpen ? undefined : 'none' }}>
-                    <AIChatDialog
-                        open={aiChatOpen}
-                        onClose={handleCloseAIChat}
-                        attachedFiles={attachedFiles}
-                        setAttachedFiles={setAttachedFiles}
-                        onAddAttachedFiles={handleAddAttachedFiles}
-                        onRemoveAttachedFile={handleRemoveAttachedFile}
-                        onToggleFileAttachment={handleToggleFileAttachment}
-                    />
+                    <Suspense fallback={null}>
+                        <AIChatDialog
+                            open={aiChatOpen}
+                            onClose={handleCloseAIChat}
+                            attachedFiles={attachedFiles}
+                            setAttachedFiles={setAttachedFiles}
+                            onAddAttachedFiles={handleAddAttachedFiles}
+                            onRemoveAttachedFile={handleRemoveAttachedFile}
+                            onToggleFileAttachment={handleToggleFileAttachment}
+                        />
+                    </Suspense>
                 </DockedAIPanel>
-                <SettingsDialog open={settingsOpen} onClose={handleCloseSettings} />
+                <Suspense fallback={null}>
+                    <SettingsDialog open={settingsOpen} onClose={handleCloseSettings} />
+                </Suspense>
             </MainContent>
             <NotificationSnackbar />
         </AppContainer>
