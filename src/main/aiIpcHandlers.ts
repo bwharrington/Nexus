@@ -2,6 +2,9 @@ import { ipcMain, app } from 'electron';
 import * as https from 'https';
 import { log, logError } from './logger';
 import { callXAiApi, listModels, hasApiKey as hasXaiApiKey, DEFAULT_XAI_MODELS, Message } from './services/xaiApi';
+import { callXAiMultiAgentApi } from './services/xaiMultiAgentApi';
+import type { MultiAgentTool, MultiAgentUsage } from './services/xaiMultiAgentApi';
+import type { ReasoningEffort } from '../shared/multiAgentUtils';
 import { callClaudeApi, callClaudeApiWithSystemPrompt, listClaudeModels, hasApiKey as hasClaudeApiKey, DEFAULT_CLAUDE_MODELS } from './services/claudeApi';
 import { callOpenAIApi, callOpenAIApiWithJsonMode, listOpenAIModels, hasApiKey as hasOpenAIApiKey, DEFAULT_OPENAI_MODELS } from './services/openaiApi';
 import { callGeminiApi, callGeminiApiWithJsonMode, listGeminiModels, hasApiKey as hasGeminiApiKey, DEFAULT_GEMINI_MODELS } from './services/geminiApi';
@@ -57,6 +60,23 @@ export interface AIEditResponse {
     success: boolean;
     modifiedContent?: string;
     summary?: string;
+    error?: string;
+}
+
+export interface AIMultiAgentRequestData {
+    input: Array<{ role: string; content: string }>;
+    model: string;
+    tools?: Array<{ type: string }>;
+    reasoningEffort?: string;
+    previousResponseId?: string;
+    requestId?: string;
+}
+
+export interface AIMultiAgentResponse {
+    success: boolean;
+    response?: string;
+    responseId?: string;
+    usage?: MultiAgentUsage;
     error?: string;
 }
 
@@ -221,6 +241,45 @@ export function registerAIIpcHandlers() {
         } catch (error) {
             logError('AI IPC: list-gemini-models failed, using defaults', error as Error);
             return { success: true, models: DEFAULT_GEMINI_MODELS };
+        }
+    });
+
+    // xAI Multi-Agent Request (Responses API)
+    ipcMain.handle('ai:multi-agent-request', async (_event, data: AIMultiAgentRequestData): Promise<AIMultiAgentResponse> => {
+        log('AI IPC: multi-agent-request', {
+            model: data.model,
+            inputCount: data.input.length,
+            tools: data.tools?.map(t => t.type),
+            reasoningEffort: data.reasoningEffort,
+            hasPreviousResponse: !!data.previousResponseId,
+        });
+        const controller = getControllerForRequest(data.requestId);
+        try {
+            const tools = data.tools as MultiAgentTool[] | undefined;
+            const reasoningEffort = data.reasoningEffort as ReasoningEffort | undefined;
+            const input = data.input.map(m => ({
+                role: m.role as 'user' | 'assistant',
+                content: m.content,
+            }));
+            const result = await callXAiMultiAgentApi(
+                input,
+                data.model,
+                tools,
+                reasoningEffort,
+                data.previousResponseId,
+                controller?.signal,
+            );
+            return {
+                success: true,
+                response: result.content,
+                responseId: result.responseId,
+                usage: result.usage,
+            };
+        } catch (error) {
+            logError('AI IPC: multi-agent-request failed', error as Error);
+            return { success: false, error: (error as Error).message };
+        } finally {
+            finalizeRequest(data.requestId);
         }
     });
 

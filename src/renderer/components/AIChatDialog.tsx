@@ -20,7 +20,7 @@ import { ChatMessages } from './ChatMessages';
 import { FileAttachmentsList } from './FileAttachmentsList';
 import type { AttachedFile } from './FileAttachmentsList';
 import { MessageInput } from './MessageInput';
-import { useAIChat, useAIAsk } from '../hooks';
+import { useAIChat, useAIAsk, useAIMultiAgent } from '../hooks';
 import type { AIProvider } from '../hooks';
 import { useAIDiffEdit } from '../hooks/useAIDiffEdit';
 import { useAICreate } from '../hooks/useAICreate';
@@ -28,6 +28,8 @@ import { useEditorState, useEditorDispatch } from '../contexts/EditorContext';
 import type { AIChatMode } from '../types/global';
 import type { IFile } from '../types';
 import { isProviderRestrictedFromMode } from '../aiProviderModeRestrictions';
+import { isMultiAgentModel, DEFAULT_MULTI_AGENT_TOOLS } from '../../shared/multiAgentUtils';
+import type { MultiAgentBuiltInTool } from '../../shared/multiAgentUtils';
 
 const AI_GREETINGS = [
     "I'll be back\u2026 right after you say something.",
@@ -180,6 +182,21 @@ export function AIChatDialog({
         clearAsk,
     } = useAIAsk();
 
+    // AI Multi-Agent hook (xAI Responses API)
+    const {
+        multiAgentMessages,
+        isMultiAgentLoading,
+        multiAgentPhase,
+        multiAgentError,
+        submitMultiAgent,
+        cancelMultiAgent,
+        clearMultiAgent,
+    } = useAIMultiAgent();
+
+    // Multi-agent tool and reasoning effort state
+    const [multiAgentTools, setMultiAgentTools] = useState<string[]>([...DEFAULT_MULTI_AGENT_TOOLS]);
+    const [reasoningEffort, setReasoningEffort] = useState<'low' | 'high'>('low');
+
     const {
         isStatusesLoaded,
         getProviderForModel,
@@ -196,6 +213,9 @@ export function AIChatDialog({
 
     // Derive provider from the currently selected model
     const provider: AIProvider = getProviderForModel(selectedModel) ?? 'claude';
+
+    // Detect multi-agent model
+    const isMultiAgent = isMultiAgentModel(selectedModel);
 
     // Persist config helper
     const persistConfig = useCallback((updates: Record<string, unknown>) => {
@@ -250,14 +270,15 @@ export function AIChatDialog({
     // Scroll to bottom when new messages arrive
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [askMessages]);
+    }, [askMessages, multiAgentMessages]);
 
-    // Reset to ask mode when the selected model's provider doesn't support the current mode
+    // Reset to ask mode when the selected model's provider doesn't support the current mode,
+    // or when a multi-agent model is selected (multi-agent only supports ask mode)
     useEffect(() => {
-        if (mode !== 'ask' && isProviderRestrictedFromMode(provider, mode)) {
+        if (mode !== 'ask' && (isProviderRestrictedFromMode(provider, mode) || isMultiAgent)) {
             handleModeChange('ask');
         }
-    }, [provider, mode, handleModeChange]);
+    }, [provider, mode, handleModeChange, isMultiAgent]);
 
     const handleWebSearchToggle = useCallback(() => {
         setWebSearchEnabled(prev => !prev);
@@ -331,17 +352,38 @@ export function AIChatDialog({
             return;
         }
 
-        // Ask mode request (stateless Q&A)
+        // Ask mode request — route to multi-agent or standard ask
         if (mode === 'ask') {
-            const filesToAttach = attachedFiles.length > 0 ? [...attachedFiles] : undefined;
-            const question = inputValue;
-            setInputValue('');
-            setAttachedFiles([]);
-            await submitAsk(question, currentProvider, selectedModel, filesToAttach, webSearchEnabled);
+            if (isMultiAgent) {
+                // Multi-agent request (xAI Responses API)
+                const filesToAttach = attachedFiles.length > 0 ? [...attachedFiles] : undefined;
+                const question = inputValue;
+                setInputValue('');
+                setAttachedFiles([]);
+                await submitMultiAgent(
+                    question,
+                    selectedModel,
+                    multiAgentTools.map(t => ({ type: t })),
+                    reasoningEffort,
+                    filesToAttach,
+                );
+            } else {
+                // Standard ask (chat completions)
+                const filesToAttach = attachedFiles.length > 0 ? [...attachedFiles] : undefined;
+                const question = inputValue;
+                setInputValue('');
+                setAttachedFiles([]);
+                await submitAsk(question, currentProvider, selectedModel, filesToAttach, webSearchEnabled);
+            }
         }
-    }, [mode, selectedModel, getProviderForModel, inputValue, requestEdit, submitAsk, submitCreate, setInputValue, attachedFiles, setAttachedFiles, dismissCreateProgress, webSearchEnabled]);
+    }, [mode, selectedModel, getProviderForModel, inputValue, requestEdit, submitAsk, submitMultiAgent, submitCreate, setInputValue, attachedFiles, setAttachedFiles, dismissCreateProgress, webSearchEnabled, isMultiAgent, multiAgentTools, reasoningEffort]);
 
     const handleCancelRequest = useCallback(async () => {
+        if (isMultiAgentLoading) {
+            await cancelMultiAgent();
+            return;
+        }
+
         if (isAskLoading) {
             await cancelAsk();
             return;
@@ -367,21 +409,22 @@ export function AIChatDialog({
         if (isCreateLoading) {
             await cancelCreate();
         }
-    }, [isAskLoading, isEditLoading, isCreateLoading, cancelAsk, cancelCreate, resetEditWebSearch]);
+    }, [isMultiAgentLoading, isAskLoading, isEditLoading, isCreateLoading, cancelMultiAgent, cancelAsk, cancelCreate, resetEditWebSearch]);
 
     const handleClearChatConfirm = useCallback(() => {
         clearAsk();
+        clearMultiAgent();
         dismissCreateProgress();
         setCreateQuery(null);
         setAttachedFiles([]);
         setWebSearchEnabled(hasSerperKey);
         setClearConfirmOpen(false);
-    }, [clearAsk, dismissCreateProgress, setAttachedFiles]);
+    }, [clearAsk, clearMultiAgent, dismissCreateProgress, setAttachedFiles]);
 
     if (!open) return null;
 
     const hasProviders = models.length > 0 || isLoadingModels;
-    const hasActiveRequest = isAskLoading || isEditLoading || isCreateLoading;
+    const hasActiveRequest = isAskLoading || isEditLoading || isCreateLoading || isMultiAgentLoading;
 
     console.log('[AIChatDialog] render:', {
         hasActiveRequest,
@@ -428,12 +471,12 @@ export function AIChatDialog({
             ) : (
                 <>
                     <ChatMessages
-                        askMessages={askMessages}
+                        askMessages={isMultiAgent ? multiAgentMessages : askMessages}
                         greeting={greeting}
-                        isAskLoading={isAskLoading}
-                        askPhase={askPhase}
-                        askWebSearchPhase={askWebSearchPhase}
-                        webSearchEnabled={webSearchEnabled}
+                        isAskLoading={isMultiAgent ? false : isAskLoading}
+                        askPhase={isMultiAgent ? null : askPhase}
+                        askWebSearchPhase={isMultiAgent ? null : askWebSearchPhase}
+                        webSearchEnabled={isMultiAgent ? false : webSearchEnabled}
                         isEditLoading={isEditLoading}
                         editWebSearchPhase={editWebSearchPhase}
                         isCreateLoading={isCreateLoading}
@@ -444,8 +487,12 @@ export function AIChatDialog({
                         createQuery={createQuery}
                         mode={mode}
                         hasDiffTab={hasDiffTab}
-                        askError={askError}
+                        askError={isMultiAgent ? null : askError}
                         editModeError={editModeError}
+                        isMultiAgentLoading={isMultiAgentLoading}
+                        multiAgentPhase={multiAgentPhase}
+                        multiAgentError={multiAgentError}
+                        multiAgentAgentCount={reasoningEffort === 'low' ? 4 : 16}
                         messagesEndRef={messagesEndRef}
                     />
 
@@ -470,6 +517,12 @@ export function AIChatDialog({
                         attachedFiles={attachedFiles}
                         hasSerperKey={hasSerperKey}
                         webSearchEnabled={webSearchEnabled}
+                        isMultiAgent={isMultiAgent}
+                        isMultiAgentLoading={isMultiAgentLoading}
+                        multiAgentTools={multiAgentTools}
+                        reasoningEffort={reasoningEffort}
+                        onMultiAgentToolsChange={setMultiAgentTools}
+                        onReasoningEffortChange={setReasoningEffort}
                         onModeChange={handleModeChange}
                         onModelChange={handleModelChange}
                         onAttachFromDisk={handleAttachFromDisk}

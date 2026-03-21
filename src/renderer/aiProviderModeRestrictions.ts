@@ -11,6 +11,7 @@
 
 import type { AIProvider } from './hooks/useAIChat';
 import type { AIChatMode } from './types/global';
+import { isMultiAgentModel } from '../shared/multiAgentUtils';
 
 export type ProviderModeRestrictions = Partial<Record<AIProvider, AIChatMode[]>>;
 
@@ -37,6 +38,17 @@ export function isProviderRestrictedFromMode(
  */
 export function getRestrictedModesForProvider(provider: AIProvider): AIChatMode[] {
     return PROVIDER_MODE_RESTRICTIONS[provider] ?? [];
+}
+
+/**
+ * Returns true if a specific model is restricted from a mode.
+ * Multi-agent models only support ask mode.
+ */
+export function isModelRestrictedFromMode(modelId: string, mode: AIChatMode): boolean {
+    if (isMultiAgentModel(modelId)) {
+        return mode === 'edit' || mode === 'create';
+    }
+    return false;
 }
 
 /**

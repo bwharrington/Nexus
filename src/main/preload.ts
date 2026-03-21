@@ -136,6 +136,14 @@ const electronAPI = {
     ipcRenderer.invoke('ai:openai-chat-request', { messages, model, requestId, maxTokens }),
   geminiChatRequest: (messages: Array<{ role: string; content: string }>, model: string, requestId?: string, maxTokens?: number) =>
     ipcRenderer.invoke('ai:gemini-chat-request', { messages, model, requestId, maxTokens }),
+  multiAgentRequest: (
+    input: Array<{ role: string; content: string }>,
+    model: string,
+    tools?: Array<{ type: string }>,
+    reasoningEffort?: string,
+    previousResponseId?: string,
+    requestId?: string,
+  ) => ipcRenderer.invoke('ai:multi-agent-request', { input, model, tools, reasoningEffort, previousResponseId, requestId }),
   cancelAIChatRequest: (requestId: string) =>
     ipcRenderer.invoke('ai:cancel-request', requestId),
   cancelAIEditRequest: (requestId: string) =>

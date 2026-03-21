@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
-import { Box, TextField, Button, IconButton, CircularProgress, styled, Select, MenuItem, FormControl, ListSubheader, Divider, Tooltip } from '@mui/material';
-import { AttachFileIcon, SendIcon, EditIcon, CreateIcon, GlobeIcon } from './AppIcons';
+import { Box, TextField, Button, IconButton, CircularProgress, styled, Select, MenuItem, FormControl, ListSubheader, Divider, Tooltip, Chip } from '@mui/material';
+import { AttachFileIcon, SendIcon, EditIcon, CreateIcon, GlobeIcon, SearchIcon, CodeIcon } from './AppIcons';
 import { AttachFilePopover } from './AttachFilePopover';
 import { SpellCheckContextMenu } from './SpellCheckContextMenu';
 import type { AttachedFile } from './FileAttachmentsList';
@@ -47,6 +47,12 @@ const RightControls = styled(Box)({
 
 const COMPACT_SELECT_SX = { fontSize: '0.75rem', py: 0.5 };
 
+const MultiAgentToolsRow = styled(Box)({
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+    flexWrap: 'wrap',
+});
 
 interface MessageInputProps {
     inputRef: React.RefObject<HTMLTextAreaElement | null>;
@@ -66,6 +72,12 @@ interface MessageInputProps {
     onModelChange: (model: string) => void;
     hasSerperKey?: boolean;
     webSearchEnabled?: boolean;
+    isMultiAgent?: boolean;
+    isMultiAgentLoading?: boolean;
+    multiAgentTools?: string[];
+    reasoningEffort?: 'low' | 'high';
+    onMultiAgentToolsChange?: (tools: string[]) => void;
+    onReasoningEffortChange?: (effort: 'low' | 'high') => void;
     onAttachFromDisk: () => void;
     onToggleFileAttachment: (file: IFile) => void;
     onWebSearchToggle?: () => void;
@@ -91,6 +103,12 @@ export function MessageInput({
     attachedFiles,
     hasSerperKey,
     webSearchEnabled,
+    isMultiAgent,
+    isMultiAgentLoading,
+    multiAgentTools = [],
+    reasoningEffort = 'low',
+    onMultiAgentToolsChange,
+    onReasoningEffortChange,
     onModeChange,
     onModelChange,
     onAttachFromDisk,
@@ -112,6 +130,14 @@ export function MessageInput({
             onClose();
         }
     }, [onSend, onClose]);
+
+    const handleToggleMultiAgentTool = useCallback((tool: string) => {
+        if (!onMultiAgentToolsChange) return;
+        const next = multiAgentTools.includes(tool)
+            ? multiAgentTools.filter(t => t !== tool)
+            : [...multiAgentTools, tool];
+        onMultiAgentToolsChange(next);
+    }, [multiAgentTools, onMultiAgentToolsChange]);
 
     const handleAttachClick = useCallback((e: React.MouseEvent<HTMLElement>) => {
         setAttachAnchorEl(e.currentTarget);
@@ -172,7 +198,9 @@ export function MessageInput({
                 maxRows={4}
                 size="small"
                 placeholder={
-                    mode === 'ask'
+                    isMultiAgent
+                        ? "Ask the multi-agent team anything... (agents collaborate to research your question)"
+                        : mode === 'ask'
                         ? (webSearchEnabled ? "Ask anything... (web search enabled)" : "Ask anything... (each question is independent)")
                         : mode === 'edit'
                             ? (webSearchEnabled ? "Describe changes... (web search enabled)" : "Describe the changes you want... (e.g., 'Add a table of contents')")
@@ -233,7 +261,56 @@ export function MessageInput({
                         <AttachFileIcon fontSize="small" />
                     </IconButton>
 
-                    {hasSerperKey && (
+                    {isMultiAgent ? (
+                        <MultiAgentToolsRow>
+                            <Tooltip title="Web search — agents search the web for information">
+                                <Chip
+                                    icon={<GlobeIcon size={14} />}
+                                    label="Web"
+                                    size="small"
+                                    variant={multiAgentTools.includes('web_search') ? 'filled' : 'outlined'}
+                                    color={multiAgentTools.includes('web_search') ? 'primary' : 'default'}
+                                    onClick={() => handleToggleMultiAgentTool('web_search')}
+                                    disabled={hasActiveRequest}
+                                    sx={{ height: 24, fontSize: '0.7rem' }}
+                                />
+                            </Tooltip>
+                            <Tooltip title="X/Twitter search — agents search posts on X">
+                                <Chip
+                                    icon={<SearchIcon size={14} />}
+                                    label="X"
+                                    size="small"
+                                    variant={multiAgentTools.includes('x_search') ? 'filled' : 'outlined'}
+                                    color={multiAgentTools.includes('x_search') ? 'primary' : 'default'}
+                                    onClick={() => handleToggleMultiAgentTool('x_search')}
+                                    disabled={hasActiveRequest}
+                                    sx={{ height: 24, fontSize: '0.7rem' }}
+                                />
+                            </Tooltip>
+                            <Tooltip title="Code execution — agents can run code to analyze data">
+                                <Chip
+                                    icon={<CodeIcon size={14} />}
+                                    label="Code"
+                                    size="small"
+                                    variant={multiAgentTools.includes('code_execution') ? 'filled' : 'outlined'}
+                                    color={multiAgentTools.includes('code_execution') ? 'primary' : 'default'}
+                                    onClick={() => handleToggleMultiAgentTool('code_execution')}
+                                    disabled={hasActiveRequest}
+                                    sx={{ height: 24, fontSize: '0.7rem' }}
+                                />
+                            </Tooltip>
+                            <Tooltip title={reasoningEffort === 'low' ? '4 agents — faster, focused research' : '16 agents — deeper, comprehensive research'}>
+                                <Chip
+                                    label={reasoningEffort === 'low' ? '4 Agents' : '16 Agents'}
+                                    size="small"
+                                    variant="outlined"
+                                    onClick={() => onReasoningEffortChange?.(reasoningEffort === 'low' ? 'high' : 'low')}
+                                    disabled={hasActiveRequest}
+                                    sx={{ height: 24, fontSize: '0.7rem' }}
+                                />
+                            </Tooltip>
+                        </MultiAgentToolsRow>
+                    ) : hasSerperKey ? (
                         <Tooltip title={
                             webSearchEnabled
                                 ? "Web search on \u2014 click to disable"
@@ -252,7 +329,7 @@ export function MessageInput({
                                 <GlobeIcon fontSize="small" />
                             </IconButton>
                         </Tooltip>
-                    )}
+                    ) : null}
                 </LeftControls>
                 <RightControls>
                     <Button
@@ -273,7 +350,7 @@ export function MessageInput({
                         color={mode === 'edit' ? 'success' : mode === 'create' ? 'secondary' : 'primary'}
                         sx={{ minWidth: 44, px: 1.5, flexShrink: 0 }}
                     >
-                        {(isAskLoading || isEditLoading || isCreateLoading) ? (
+                        {(isAskLoading || isEditLoading || isCreateLoading || isMultiAgentLoading) ? (
                             <CircularProgress size={18} color="inherit" />
                         ) : mode === 'edit' ? (
                             <EditIcon fontSize="small" />

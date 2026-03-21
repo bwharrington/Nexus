@@ -7,8 +7,10 @@ import { CodeBlock } from './CodeBlock';
 import { CreateProgress } from './CreateProgress';
 import { AskProgress } from './AskProgress';
 import { EditProgress } from './EditProgress';
+import { MultiAgentProgress } from './MultiAgentProgress';
 import type { CreatePhase } from '../hooks/useAICreate';
 import type { AskPhase } from '../hooks/useAIAsk';
+import type { MultiAgentPhase } from '../hooks/useAIMultiAgent';
 import type { WebSearchPhase } from '../hooks/useWebSearch';
 import type { AIChatMode } from '../types/global';
 
@@ -208,6 +210,10 @@ interface ChatMessagesProps {
     hasDiffTab: boolean;
     askError: string | null;
     editModeError: string | null;
+    isMultiAgentLoading?: boolean;
+    multiAgentPhase?: MultiAgentPhase;
+    multiAgentError?: string | null;
+    multiAgentAgentCount?: 4 | 16;
     messagesEndRef: React.RefObject<HTMLDivElement | null>;
 }
 
@@ -230,13 +236,17 @@ export function ChatMessages({
     hasDiffTab,
     askError,
     editModeError,
+    isMultiAgentLoading,
+    multiAgentPhase,
+    multiAgentError,
+    multiAgentAgentCount = 4,
     messagesEndRef,
 }: ChatMessagesProps) {
     const [diffReviewMessage] = useState(() =>
         DIFF_REVIEW_MESSAGES[Math.floor(Math.random() * DIFF_REVIEW_MESSAGES.length)]
     );
 
-    const showGreeting = askMessages.length === 0 && !isAskLoading && !isEditLoading && !isCreateLoading && !createComplete && !hasDiffTab;
+    const showGreeting = askMessages.length === 0 && !isAskLoading && !isEditLoading && !isCreateLoading && !isMultiAgentLoading && !createComplete && !hasDiffTab;
 
     return (
         <MessagesContainer>
@@ -337,6 +347,12 @@ export function ChatMessages({
                     webSearchEnabled={webSearchEnabled}
                 />
             )}
+            {isMultiAgentLoading && multiAgentPhase && (
+                <MultiAgentProgress
+                    phase={multiAgentPhase}
+                    agentCount={multiAgentAgentCount}
+                />
+            )}
             {isEditLoading && (
                 <EditProgress
                     webSearchPhase={editWebSearchPhase}
@@ -367,6 +383,11 @@ export function ChatMessages({
             {createError && (
                 <Typography color="error" variant="body2" sx={{ textAlign: 'center' }}>
                     {createError}
+                </Typography>
+            )}
+            {multiAgentError && (
+                <Typography color="error" variant="body2" sx={{ textAlign: 'center' }}>
+                    {multiAgentError}
                 </Typography>
             )}
             {askError && (

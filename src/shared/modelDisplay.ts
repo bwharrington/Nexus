@@ -30,11 +30,59 @@ export const MODEL_DISPLAY_OVERRIDES: Record<string, string> = {
 
 /** Format a model ID into a readable display name (e.g. "grok-4-latest" → "Grok 4 Latest"). */
 export function formatModelName(modelId: string): string {
+    // xAI Grok models: strip beta tags, date suffixes, and "fast-" to produce clean names
+    if (modelId.startsWith('grok-')) {
+        return formatGrokModelName(modelId);
+    }
     return modelId
         .replace(/-/g, ' ')
         .replace(/\b\w/g, c => c.toUpperCase())
         .replace(/(\d+)$/g, ' $1')
         .trim();
+}
+
+/**
+ * Smart formatter for Grok model IDs.
+ * Strips beta tags, date suffixes (e.g. -0309, -0709), and "fast-" to produce
+ * clean names like "Grok 4.1", "Grok 4.20 Reasoning", "Grok 4.20 Multi Agent".
+ */
+function formatGrokModelName(modelId: string): string {
+    let name = modelId;
+
+    // Strip date suffixes (4-digit: -0309, -0709, etc.)
+    name = name.replace(/-\d{4}(?=$|-)/g, '');
+    // Strip "beta" tag
+    name = name.replace(/-beta/g, '');
+    // Strip "fast-" (Grok 4.1 uses "fast-" prefix for its variants)
+    name = name.replace(/-fast/g, '');
+    // Clean up any doubled dashes from stripping
+    name = name.replace(/--+/g, '-').replace(/-$/, '');
+
+    // Map "non-reasoning" to just the base name (it's the default mode)
+    const isNonReasoning = name.includes('-non-reasoning');
+    name = name.replace(/-non-reasoning/, '');
+
+    // Map remaining "-reasoning" to " Reasoning"
+    const isReasoning = !isNonReasoning && name.includes('-reasoning');
+    name = name.replace(/-reasoning/, '');
+
+    // Convert "grok-4-1" → "Grok 4.1", "grok-4.20" stays as-is
+    // First, handle the version number: grok-4-1 → grok-4.1
+    name = name.replace(/^grok-(\d+)-(\d+)$/, 'grok-$1.$2');
+    name = name.replace(/^grok-(\d+)-(\d+)-/, 'grok-$1.$2-');
+
+    // Now format: dashes to spaces, capitalize words
+    name = name
+        .replace(/-/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase())
+        .trim();
+
+    // Append "Reasoning" suffix for reasoning variants
+    if (isReasoning) {
+        name += ' Reasoning';
+    }
+
+    return name;
 }
 
 /** Return the display name for a model ID, using overrides where available. */

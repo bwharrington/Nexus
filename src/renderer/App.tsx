@@ -173,7 +173,7 @@ const FileDirectoryPanel = styled(Box)({
 
 // Inner app component that uses context
 function AppContent() {
-    const DEFAULT_AI_DOCK_WIDTH = 480;
+    const DEFAULT_AI_DOCK_WIDTH = 505;
     const MIN_AI_DOCK_WIDTH = 320;
     const MIN_EDITOR_WIDTH = 320;
     const DEFAULT_FILE_DIR_WIDTH = 260;

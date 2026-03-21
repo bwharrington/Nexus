@@ -30,7 +30,11 @@
       "Bash(grep -n \"dispatch.*NEW_FILE\\\\|onMenuNew\\\\|newFile\" /c/Projects/MarkdownPlus/src/renderer/**/*.tsx)",
       "Bash(xargs grep:*)",
       "Bash(grep -n \"callClaudeApiWithSystemPrompt\\\\|callOpenAIApiWithJsonMode\\\\|callGeminiApiWithJsonMode\" /c/Projects/MarkdownPlus/src/main/services/*.ts)",
-      "Bash(node -e \"try { const p = require\\(''./package.json''\\); console.log\\(''electron:'', p.devDependencies?.electron || p.dependencies?.electron\\); } catch\\(e\\) { console.log\\(e.message\\); }\")"
+      "Bash(node -e \"try { const p = require\\(''./package.json''\\); console.log\\(''electron:'', p.devDependencies?.electron || p.dependencies?.electron\\); } catch\\(e\\) { console.log\\(e.message\\); }\")",
+      "Bash(grep -E \"\\\\.ts$\")",
+      "WebFetch(domain:docs.x.ai)",
+      "WebFetch(domain:sdk.vercel.ai)",
+      "Bash(npx webpack:*)"
     ]
   }
 }

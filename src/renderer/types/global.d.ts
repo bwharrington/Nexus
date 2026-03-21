@@ -102,6 +102,14 @@ export interface AIChatResponse {
   error?: string;
 }
 
+export interface AIMultiAgentResponse {
+  success: boolean;
+  response?: string;
+  responseId?: string;
+  usage?: { input_tokens: number; output_tokens: number; reasoning_tokens?: number };
+  error?: string;
+}
+
 export interface AIModelsResponse {
   success: boolean;
   models?: AIModelOption[];
@@ -242,6 +250,14 @@ export interface ElectronAPI {
   claudeChatRequest: (messages: AIMessage[], model: string, requestId?: string, maxTokens?: number) => Promise<AIChatResponse>;
   openaiChatRequest: (messages: AIMessage[], model: string, requestId?: string, maxTokens?: number) => Promise<AIChatResponse>;
   geminiChatRequest: (messages: AIMessage[], model: string, requestId?: string, maxTokens?: number) => Promise<AIChatResponse>;
+  multiAgentRequest: (
+    input: Array<{ role: string; content: string }>,
+    model: string,
+    tools?: Array<{ type: string }>,
+    reasoningEffort?: string,
+    previousResponseId?: string,
+    requestId?: string,
+  ) => Promise<AIMultiAgentResponse>;
   cancelAIChatRequest: (requestId: string) => Promise<{ success: boolean; cancelled: boolean }>;
   cancelAIEditRequest: (requestId: string) => Promise<{ success: boolean; cancelled: boolean }>;
   aiEditRequest: (messages: AIMessage[], model: string, provider: 'claude' | 'openai' | 'gemini', requestId?: string) => Promise<AIEditResponse>;

@@ -43,9 +43,12 @@ export interface ListModelsResponse {
 
 // Default models to use if API listing fails
 export const DEFAULT_XAI_MODELS = [
-    { id: 'grok-4-0709',                 displayName: 'Grok 4' },
-    { id: 'grok-4-1-fast-non-reasoning', displayName: 'Grok 4.1' },
-    { id: 'grok-4-1-fast-reasoning',     displayName: 'Grok 4.1 Reasoning' },
+    { id: 'grok-4-0709',                        displayName: 'Grok 4' },
+    { id: 'grok-4-1-fast-non-reasoning',         displayName: 'Grok 4.1' },
+    { id: 'grok-4-1-fast-reasoning',             displayName: 'Grok 4.1 Reasoning' },
+    { id: 'grok-4.20-beta-0309-non-reasoning',   displayName: 'Grok 4.20' },
+    { id: 'grok-4.20-beta-0309-reasoning',       displayName: 'Grok 4.20 Reasoning' },
+    { id: 'grok-4.20-multi-agent-beta-0309',     displayName: 'Grok 4.20 Multi Agent' },
 ];
 
 export async function callXAiApi(

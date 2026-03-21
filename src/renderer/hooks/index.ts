@@ -6,6 +6,8 @@ export { useWebSearch } from './useWebSearch';
 export type { WebSearchPhase, WebSearchResult } from './useWebSearch';
 export { useExternalFileWatcher } from './useExternalFileWatcher';
 export type { AIProvider, AIMessage, AIModelOption, AIProviderStatus, AIProviderStatuses } from './useAIChat';
+export { useAIMultiAgent } from './useAIMultiAgent';
+export type { MultiAgentPhase } from './useAIMultiAgent';
 export { useFindReplace } from './useFindReplace';
 export { useImagePaste } from './useImagePaste';
 export { useContentEditable } from './useContentEditable';
