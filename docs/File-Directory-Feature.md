@@ -24,6 +24,7 @@ This document describes the File Directory Panel feature in Nexus — a collapsi
    - [Expand / Collapse All](#expand--collapse-all)
    - [Show All Files](#show-all-files)
 6. [Context Menu](#context-menu)
+   - [Cut, Copy, and Paste](#cut-copy-and-paste)
    - [Multi-select Context Menu](#multi-select-context-menu)
 7. [Drag and Drop](#drag-and-drop)
 8. [Live Directory Watching](#live-directory-watching)
@@ -50,7 +51,8 @@ Key capabilities:
 
 - Open **multiple directories** simultaneously, each with its own isolated tree view
 - **Create, rename, delete, and move** files and folders directly from the panel
-- **Drag-and-drop** files and folders within a directory to reorganize them
+- **Drag-and-drop** files and folders within and across directories to reorganize them
+- **Cut, Copy, and Paste** files and folders via the context menu, with visual indicators and cross-directory support
 - **Right-click context menu** with all common file operations
 - **Sort** files A-to-Z or Z-to-A per directory
 - **Attach files** to the Nexus AI chat context without opening them in the editor
@@ -205,6 +207,9 @@ Right-clicking any file or folder in the tree opens a context menu. The availabl
 | **New Folder** | Create a new subfolder inside this folder |
 | **Rename** | Rename the folder inline (activates the inline rename input) |
 | **Delete** | Delete the folder and all its contents (with OS confirmation via system dialog) |
+| **Cut** | Cut the folder to the clipboard for moving (see [Cut, Copy, and Paste](#cut-copy-and-paste)) |
+| **Copy** | Copy the folder to the clipboard for duplicating |
+| **Paste** | Paste the clipboard contents into this folder |
 | **Open File Location** | Open the folder's location in the OS file explorer / Finder |
 | **Copy Path** | Copy the full absolute path to the clipboard |
 | **Copy Name** | Copy just the folder name to the clipboard |
@@ -215,10 +220,54 @@ Right-clicking any file or folder in the tree opens a context menu. The availabl
 |---|---|
 | **Rename** | Rename the file inline |
 | **Delete** | Delete the file from disk (with OS confirmation) |
+| **Cut** | Cut the file to the clipboard for moving (see [Cut, Copy, and Paste](#cut-copy-and-paste)) |
+| **Copy** | Copy the file to the clipboard for duplicating |
+| **Paste** | Paste the clipboard contents into the file's parent directory |
 | **Open File Location** | Reveal the file in the OS file explorer / Finder |
 | **Copy Path** | Copy the full absolute path to the clipboard |
 | **Copy Name** | Copy the filename (with extension) to the clipboard |
 | **Attach to Nexus AI** / **Remove from Nexus AI** | Toggle whether the file is attached to the Nexus AI chat context (see [Nexus AI Integration](#nexus-ai-integration)) |
+
+### Cut, Copy, and Paste
+
+The context menu provides Cut, Copy, and Paste actions for moving and duplicating files and folders — including across different open directories.
+
+**Menu state behavior:**
+
+| State | Cut / Copy | Paste |
+|---|---|---|
+| No clipboard | Enabled | Disabled (greyed out) |
+| After Cut or Copy | Disabled (greyed out) | Enabled |
+| After Paste completes | Enabled | Disabled (greyed out) |
+
+**Visual indicators on the source item:**
+
+- **Cut**: The file/folder name appears pale and italic (`opacity: 0.45`) with a scissors icon to the right, similar to Windows Explorer.
+- **Copy**: A small clipboard icon appears to the right of the file/folder name.
+- Indicators are cleared once the paste operation completes or the clipboard is otherwise cleared.
+
+**Paste target resolution:**
+
+- Pasting on a **folder** places the item inside that folder.
+- Pasting on a **file** resolves to the file's parent directory.
+- Right-clicking the **toolbar folder name** and pasting targets the directory root.
+
+**Copy collision handling:**
+
+When copying a file to a location where a file with the same name already exists, the copy is automatically renamed:
+- First collision: `filename - Copy.ext`
+- Subsequent collisions: `filename - Copy (2).ext`, `filename - Copy (3).ext`, etc.
+
+**Cross-drive support:**
+
+- Cut (move) operations across different drives use a copy-then-delete fallback (`fs.cp` + `fs.rm`) when `fs.rename` returns an `EXDEV` error.
+- Copy operations use `fs.copyFile` for files and `fs.cp({ recursive: true })` for directories, which work natively across drives.
+
+**Clipboard lifecycle:**
+
+- The clipboard is shared globally across all open directories — cut/copy in one directory, paste in another.
+- Closing a directory clears the clipboard if the clipboard source belongs to that directory.
+- The clipboard is cleared after a successful paste operation.
 
 ### Inline Rename
 
@@ -244,13 +293,17 @@ Right-clicking a file that is **not** in the current selection while multiple fi
 
 ## Drag and Drop
 
-Files and folders can be **dragged within a directory** to move them to a different location:
+Files and folders can be dragged to move them to a different location, both within the same directory and across different open directories:
 
 - Drag a file or folder row and drop it onto a **folder** node to move it into that folder.
+- Drop onto a **file** node to move the item into that file's parent directory.
+- Drop onto the **toolbar folder name** label to move the item into that directory's root.
 - Drop onto the **root tree area** (empty space) to move the item to the directory root.
-- A visual drop indicator shows where the item will land.
-- Drag-and-drop is **isolated within a single directory** — dragging between two open directories is not currently supported.
-- The tree refreshes automatically after a move.
+- A visual highlight on the drop target indicates where the item will land.
+- **Cross-directory moves** are fully supported — drag from one open directory and drop into another. Both the source and destination directory trees refresh automatically after the move.
+- **Cross-drive moves** are handled transparently — if the source and destination are on different drives, the operation falls back to a copy-then-delete strategy.
+- If the dragged item is a file that is currently open in an editor tab, the tab's path is updated automatically to reflect the new location.
+- Items cannot be dropped into themselves or their own children (self-containment guard).
 
 ---
 
@@ -368,6 +421,10 @@ interface DirectoryInstance {
     cancelRename: () => void;
     openFileInEditor: (filePath: string) => Promise<void>;
     openMultipleFiles: (paths: string[]) => Promise<void>;
+    fileClipboard: FileClipboard | null;   // shared clipboard state (cut/copy)
+    cutItem: (path: string, name: string) => void;
+    copyItemToClipboard: (path: string, name: string) => void;
+    pasteItem: (destDirPath: string) => Promise<void>;
 }
 ```
 
@@ -394,6 +451,8 @@ All file system operations are handled in the Electron main process and called f
 | `file:create-folder` | Renderer → Main | Create a new folder on disk |
 | `file:delete` | Renderer → Main | Delete a file or folder (moves to OS trash) |
 | `file:rename` | Renderer → Main | Rename or move a file/folder |
+| `file:move` | Renderer → Main | Move a file or folder to a new directory (with EXDEV cross-drive fallback) |
+| `file:copy` | Renderer → Main | Copy a file or folder to a destination directory (with automatic name collision handling) |
 | `file:reveal-in-explorer` | Renderer → Main | Open the OS file explorer at the given path |
 | `file:read` | Renderer → Main | Read a file's contents (used when opening from the panel) |
 | `directory:watch` | Renderer → Main | Begin watching a directory path for file system changes |

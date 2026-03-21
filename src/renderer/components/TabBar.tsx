@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Tabs, Tab, Box, IconButton, Tooltip, styled, Menu, MenuItem, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField } from '@mui/material';
+import { Tabs, Tab, Box, IconButton, Tooltip, styled, Menu, MenuItem, Divider, Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField } from '@mui/material';
 import {
     CloseIcon,
     SaveIcon,
@@ -14,7 +14,9 @@ import {
     ClipboardCopyIcon,
     SaveAsIcon,
     RefreshIcon,
+    GitCompareIcon,
 } from './AppIcons';
+import { CompareDialog } from './CompareDialog';
 import { useEditorState, useEditorDispatch } from '../contexts';
 import { useFileOperations } from '../hooks';
 import type { IFile } from '../types';
@@ -195,6 +197,8 @@ export function TabBar({ attachedFiles, onToggleFileAttachment }: TabBarProps) {
     const [renameDialog, setRenameDialog] = React.useState<{ open: boolean; fileId: string; currentName: string }>({ open: false, fileId: '', currentName: '' });
     const [newFileName, setNewFileName] = React.useState('');
     const { renameFile, showInFolder, saveFileAs } = useFileOperations();
+    const [compareLeftFileId, setCompareLeftFileId] = useState<string | null>(null);
+    const [compareDialogData, setCompareDialogData] = useState<{ leftFile: IFile; rightFile: IFile } | null>(null);
 
     const handleTabChange = useCallback((_event: React.SyntheticEvent, newValue: string) => {
         const file = state.openFiles.find(f => f.id === newValue);
@@ -303,6 +307,60 @@ export function TabBar({ attachedFiles, onToggleFileAttachment }: TabBarProps) {
         setContextMenu(null);
     }, [contextMenu, state.openFiles, onToggleFileAttachment]);
 
+    const handleCompareLeft = useCallback(() => {
+        if (contextMenu) {
+            const file = state.openFiles.find(f => f.id === contextMenu.fileId);
+            console.log('[TabBar] Compare - Left set', { fileId: contextMenu.fileId, fileName: file?.name, filePath: file?.path });
+            setCompareLeftFileId(contextMenu.fileId);
+        }
+        setContextMenu(null);
+    }, [contextMenu, state.openFiles]);
+
+    const handleCompareRight = useCallback(() => {
+        if (contextMenu && compareLeftFileId) {
+            const leftFile = state.openFiles.find(f => f.id === compareLeftFileId);
+            const rightFile = state.openFiles.find(f => f.id === contextMenu.fileId);
+            console.log('[TabBar] Compare - Right selected', {
+                leftFileId: compareLeftFileId,
+                leftFileName: leftFile?.name,
+                leftFilePath: leftFile?.path,
+                rightFileId: contextMenu.fileId,
+                rightFileName: rightFile?.name,
+                rightFilePath: rightFile?.path,
+            });
+            if (leftFile && rightFile) {
+                if (leftFile.content === rightFile.content) {
+                    console.log('[TabBar] Compare - files are identical, no dialog opened');
+                    dispatch({
+                        type: 'SHOW_NOTIFICATION',
+                        payload: {
+                            message: `"${leftFile.name}" and "${rightFile.name}" are the same.`,
+                            severity: 'info',
+                        },
+                    });
+                } else {
+                    console.log('[TabBar] Compare - files differ, opening compare dialog');
+                    setCompareDialogData({ leftFile, rightFile });
+                }
+            } else {
+                console.warn('[TabBar] Compare - could not find one or both files', { leftFile: !!leftFile, rightFile: !!rightFile });
+            }
+            setCompareLeftFileId(null);
+        }
+        setContextMenu(null);
+    }, [contextMenu, compareLeftFileId, state.openFiles, dispatch]);
+
+    const handleClearCompare = useCallback(() => {
+        const prevFile = state.openFiles.find(f => f.id === compareLeftFileId);
+        console.log('[TabBar] Compare - cleared', { clearedFileId: compareLeftFileId, clearedFileName: prevFile?.name });
+        setCompareLeftFileId(null);
+        setContextMenu(null);
+    }, [compareLeftFileId, state.openFiles]);
+
+    const handleCompareDialogClose = useCallback(() => {
+        console.log('[TabBar] Compare dialog closed');
+        setCompareDialogData(null);
+    }, []);
 
     const handleRenameDialogClose = useCallback(() => {
         setRenameDialog({ open: false, fileId: '', currentName: '' });
@@ -419,10 +477,17 @@ export function TabBar({ attachedFiles, onToggleFileAttachment }: TabBarProps) {
                         : undefined
                 }
             >
+                {/* File management */}
                 <MenuItem onClick={handleRenameClick}>
                     <EditIcon size={18} sx={{ mr: 1 }} />
                     Rename
                 </MenuItem>
+                <MenuItem onClick={handleSaveAsClick}>
+                    <SaveAsIcon size={18} sx={{ mr: 1 }} />
+                    Save As
+                </MenuItem>
+                <Divider />
+                {/* Location & copy */}
                 <MenuItem
                     onClick={handleOpenLocationClick}
                     disabled={!state.openFiles.find(f => f.id === contextMenu?.fileId)?.path}
@@ -448,10 +513,31 @@ export function TabBar({ attachedFiles, onToggleFileAttachment }: TabBarProps) {
                     <CopyIcon size={18} sx={{ mr: 1 }} />
                     Copy File Name
                 </MenuItem>
-                <MenuItem onClick={handleSaveAsClick}>
-                    <SaveAsIcon size={18} sx={{ mr: 1 }} />
-                    Save As
+                <Divider />
+                {/* Compare */}
+                <MenuItem
+                    onClick={handleCompareLeft}
+                    disabled={compareLeftFileId !== null}
+                >
+                    <GitCompareIcon size={18} sx={{ mr: 1 }} />
+                    Compare - Left
                 </MenuItem>
+                <MenuItem
+                    onClick={handleCompareRight}
+                    disabled={compareLeftFileId === null || compareLeftFileId === contextMenu?.fileId}
+                >
+                    <GitCompareIcon size={18} sx={{ mr: 1 }} />
+                    Compare - Right
+                </MenuItem>
+                <MenuItem
+                    onClick={handleClearCompare}
+                    disabled={compareLeftFileId === null}
+                >
+                    <GitCompareIcon size={18} sx={{ mr: 1 }} />
+                    Clear Compare
+                </MenuItem>
+                <Divider />
+                {/* Nexus AI */}
                 <MenuItem
                     onClick={handleAttachToggleClick}
                     disabled={!contextFile?.path || contextFile?.viewMode === 'diff'}
@@ -490,6 +576,13 @@ export function TabBar({ attachedFiles, onToggleFileAttachment }: TabBarProps) {
                     </Button>
                 </DialogActions>
             </Dialog>
+            {compareDialogData && (
+                <CompareDialog
+                    leftFile={compareDialogData.leftFile}
+                    rightFile={compareDialogData.rightFile}
+                    onClose={handleCompareDialogClose}
+                />
+            )}
         </TabContainer>
     );
 }

@@ -8,26 +8,27 @@ This document details how Edit Mode works in Nexus — including the AI prompts,
 
 1. [Overview](#overview)
 2. [Activating Edit Mode](#activating-edit-mode)
-3. [Prompt Construction](#prompt-construction)
+3. [Chat Context Toggle](#chat-context-toggle)
+4. [Prompt Construction](#prompt-construction)
    - [System Prompt](#system-prompt)
    - [User Prompt](#user-prompt)
    - [Web Search Context](#web-search-context)
-4. [Prompt Chain and Request Flow](#prompt-chain-and-request-flow)
-5. [Provider-Specific Handling](#provider-specific-handling)
+5. [Prompt Chain and Request Flow](#prompt-chain-and-request-flow)
+6. [Provider-Specific Handling](#provider-specific-handling)
    - [Claude (Anthropic)](#claude-anthropic)
    - [OpenAI](#openai)
    - [Google Gemini](#google-gemini)
    - [Provider Restrictions](#provider-restrictions)
-6. [JSON Response Parsing](#json-response-parsing)
-7. [Diff Computation](#diff-computation)
-8. [Diff Tab and Visualization](#diff-tab-and-visualization)
-9. [Accepting and Rejecting Changes](#accepting-and-rejecting-changes)
-   - [Per-Hunk Controls](#per-hunk-controls)
-   - [Bulk Actions](#bulk-actions)
-   - [Keyboard Shortcuts](#keyboard-shortcuts)
-10. [Document Reconstruction](#document-reconstruction)
-11. [Loading States](#loading-states)
-12. [Architecture Summary](#architecture-summary)
+7. [JSON Response Parsing](#json-response-parsing)
+8. [Diff Computation](#diff-computation)
+9. [Diff Tab and Visualization](#diff-tab-and-visualization)
+10. [Accepting and Rejecting Changes](#accepting-and-rejecting-changes)
+    - [Per-Hunk Controls](#per-hunk-controls)
+    - [Bulk Actions](#bulk-actions)
+    - [Keyboard Shortcuts](#keyboard-shortcuts)
+11. [Document Reconstruction](#document-reconstruction)
+12. [Loading States](#loading-states)
+13. [Architecture Summary](#architecture-summary)
 
 ---
 
@@ -45,6 +46,31 @@ Edit Mode is an AI-assisted document editing system. The user describes changes 
 4. The send button turns green with an edit icon.
 
 **Provider restriction**: The mode dropdown hides the xAI (Grok) provider when Edit is selected because Grok does not support structured JSON output. If xAI is the active provider when the user switches to Edit mode, the mode resets automatically to Ask.
+
+---
+
+## Chat Context Toggle
+
+When there are messages in the Ask or multi-agent chat history, a **History icon** toggle button appears in the input toolbar while Edit mode is active:
+
+- Click the icon to include the current Ask/multi-agent chat history as context for the edit request
+- When enabled, the icon turns **blue**; when disabled it is muted grey
+- The button is hidden when the chat history is empty (nothing to include)
+- The toggle state persists in `config.json` (`aiChatContextEnabled`)
+
+**How it works in the prompt**: When enabled, the formatted chat history is injected into the edit prompt between the requested changes and the document content, inside a clearly delimited block:
+
+```
+--- PREVIOUS CHAT CONTEXT (use only if relevant to the edit) ---
+[user]: {prior question}
+[assistant]: {prior answer}
+...
+--- END CHAT CONTEXT ---
+```
+
+The AI is instructed to treat this as reference-only context, not as a directive. This allows the AI to understand what the user was just researching without misinterpreting conversation turns as edit instructions.
+
+**Use case**: Ask questions in Ask mode to explore a topic, then switch to Edit mode with the context toggle enabled so the AI can make edits informed by that prior conversation.
 
 ---
 
@@ -85,6 +111,12 @@ File: {fileName}
 
 Requested changes:
 {user's edit instruction}
+
+--- PREVIOUS CHAT CONTEXT (use only if relevant to the edit) ---
+[user]: ...
+[assistant]: ...
+--- END CHAT CONTEXT ---
+(only present when Chat Context toggle is enabled and Ask history exists)
 
 Current document:
 ```markdown
@@ -132,6 +164,7 @@ The full sequence from user action to applied changes:
    - model (selected model ID)
    - requestId (for cancellation)
    - webSearchEnabled (boolean)
+   - chatContext (formatted Ask history string, only when toggle is enabled)
         │
         ▼
 5. IPC call: window.electronAPI.aiEditRequest()

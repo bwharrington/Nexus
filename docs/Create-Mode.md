@@ -8,21 +8,22 @@ This document details how Create Mode works in Nexus — including the AI prompt
 
 1. [Overview](#overview)
 2. [Activating Create Mode](#activating-create-mode)
-3. [Two-Phase Generation Flow](#two-phase-generation-flow)
-4. [Prompt Construction](#prompt-construction)
+3. [Chat Context Toggle](#chat-context-toggle)
+4. [Two-Phase Generation Flow](#two-phase-generation-flow)
+5. [Prompt Construction](#prompt-construction)
    - [Content Generation Prompt](#content-generation-prompt)
    - [Filename Generation Prompt](#filename-generation-prompt)
    - [File Attachment Context](#file-attachment-context)
    - [Web Search Context](#web-search-context)
-5. [Prompt Chain and Request Flow](#prompt-chain-and-request-flow)
-6. [Provider Handling](#provider-handling)
-7. [Auto-Continuation for Long Documents](#auto-continuation-for-long-documents)
-8. [Filename Sanitization](#filename-sanitization)
-9. [Document Creation and Tab Opening](#document-creation-and-tab-opening)
-10. [Loading States — CreateProgress](#loading-states--createprogress)
-11. [Request Cancellation](#request-cancellation)
-12. [Error Handling](#error-handling)
-13. [Architecture Summary](#architecture-summary)
+6. [Prompt Chain and Request Flow](#prompt-chain-and-request-flow)
+7. [Provider Handling](#provider-handling)
+8. [Auto-Continuation for Long Documents](#auto-continuation-for-long-documents)
+9. [Filename Sanitization](#filename-sanitization)
+10. [Document Creation and Tab Opening](#document-creation-and-tab-opening)
+11. [Loading States — CreateProgress](#loading-states--createprogress)
+12. [Request Cancellation](#request-cancellation)
+13. [Error Handling](#error-handling)
+14. [Architecture Summary](#architecture-summary)
 
 ---
 
@@ -44,6 +45,28 @@ No existing document is modified; the output is always a brand-new file.
 4. The send button turns the secondary theme color with a Create icon.
 
 All four AI providers (Claude, OpenAI, Gemini, xAI) support Create mode. There are no provider restrictions.
+
+---
+
+## Chat Context Toggle
+
+When there are messages in the Ask or multi-agent chat history, a **History icon** toggle button appears in the input toolbar while Create mode is active:
+
+- Click the icon to include the current Ask/multi-agent chat history as reference context for the content generation
+- When enabled, the icon turns **blue**; when disabled it is muted grey
+- The button is hidden when the chat history is empty
+- The toggle state persists in `config.json` (`aiChatContextEnabled`)
+
+**How it works in the prompt**: When enabled, the formatted chat history is injected into `buildCreatingPrompt()` as a **Previous Chat Context** section, placed after any research notes and before the reference files block:
+
+```
+**Previous Chat Context (use as reference if relevant):**
+[user]: {prior question}
+[assistant]: {prior answer}
+...
+```
+
+**Use case**: Ask questions in Ask mode to research a topic or gather ideas, then switch to Create mode with the context toggle enabled — the AI can draw on that prior discussion when writing the new document.
 
 ---
 
@@ -106,6 +129,17 @@ Rules:
 - Return ONLY the filename, nothing else
 ```
 
+### Chat Context
+
+When the Chat Context toggle is enabled (and Ask/multi-agent history exists), the formatted chat history is included in the prompt as a reference section between any research notes and the file attachment block:
+
+```
+**Previous Chat Context (use as reference if relevant):**
+[user]: {prior question}
+[assistant]: {prior answer}
+...
+```
+
 ### File Attachment Context
 
 When the user has files attached in the AI panel, their content is injected into the content generation prompt via `buildFileContextFromOpenFiles()`:
@@ -154,6 +188,7 @@ The web search runs before the content generation call and goes through two sub-
         ▼
 4. File attachment context assembled from open editor files
    Combined with web search results into final context block
+   If Chat Context toggle is enabled, Ask/multi-agent history appended as reference block
         │
         ▼
 5. Phase 1 — Content generation
@@ -351,7 +386,7 @@ On error:
 
 | Layer | File | Responsibility |
 |-------|------|---------------|
-| UI / Input | `MessageInput.tsx` | Mode dropdown, placeholder, send button, web search toggle, spell check |
+| UI / Input | `MessageInput.tsx` | Mode dropdown, placeholder, send button, web search toggle, chat context toggle, spell check |
 | UI / Progress | `CreateProgress.tsx` | Multi-step progress indicator with timing |
 | UI / Chat | `ChatMessages.tsx` | Shows user query, progress, completion banner, error |
 | UI / Orchestration | `AIChatDialog.tsx` | Wires hook to UI, handles mode switching and send/cancel |

@@ -23,6 +23,7 @@ Ask Mode is the default AI mode in Nexus. It provides a stateless question-and-a
    - [Message Bubbles](#message-bubbles)
    - [Markdown Rendering](#markdown-rendering)
    - [Copy Response](#copy-response)
+   - [New File from Response](#new-file-from-response)
 7. [Clearing Chat](#clearing-chat)
 8. [Error Handling](#error-handling)
 9. [Provider Support](#provider-support)
@@ -258,7 +259,7 @@ Ask Mode Q&A pairs are displayed as styled chat bubbles in the messages area:
 - Maximum width: 85% of the container
 - Content rendered as Markdown
 
-Messages auto-scroll to the bottom when new messages arrive.
+Messages auto-scroll to the bottom whenever a new request starts or messages arrive, so the user always sees the latest activity. Users can scroll up manually to review earlier messages.
 
 ### Markdown Rendering
 
@@ -274,6 +275,16 @@ Assistant responses are rendered using `ReactMarkdown` with custom components:
 Each assistant response includes a **Copy** button at the bottom:
 - Clicking "Copy" writes the raw Markdown content to the clipboard
 - The button briefly changes to a checkmark with "Copied" text for 1.5 seconds as confirmation
+
+### New File from Response
+
+Each assistant response also includes a **New File** button next to the Copy button:
+- Clicking "New File" opens a new `Untitled.md` editor tab pre-populated with the full response content
+- The tab opens in **preview mode** so the rendered Markdown is immediately visible
+- The file is unsaved (`path: null`) — use `Ctrl+S` to save it to disk
+- This applies to both standard Ask responses and multi-agent responses
+
+**Implementation**: Dispatches an `OPEN_FILE` action to `EditorContext` with `path: null`, `name: 'Untitled.md'`, `viewMode: 'preview'`, and `fileType: 'markdown'` — the same mechanism used by Create Mode to open generated documents.
 
 ---
 

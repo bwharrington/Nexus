@@ -75,6 +75,7 @@ import {
     HelpCircle,
     Scissors,
     ClipboardPaste,
+    GitCompareArrows,
 } from 'lucide-react';
 
 type MuiFontSize = 'inherit' | 'small' | 'medium' | 'large';
@@ -222,3 +223,4 @@ export const FolderInputIcon = createIcon(FolderInput);
 export const CreateIcon = createIcon(Sparkles);
 export const GlobeIcon = createIcon(Globe);
 export const HelpCircleIcon = createIcon(HelpCircle);
+export const GitCompareIcon = createIcon(GitCompareArrows);

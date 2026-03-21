@@ -29,8 +29,10 @@ This document describes the Nexus AI feature in Nexus, covering configuration, t
 5. [Ask Mode](#ask-mode)
    - [How Ask Mode Works](#how-ask-mode-works)
    - [Ask Mode Output](#ask-mode-output)
+   - [New File from Response](#new-file-from-response)
 6. [Edit Mode and Diff System](#edit-mode-and-diff-system)
    - [Activating Edit Mode](#activating-edit-mode)
+   - [Chat Context Toggle](#chat-context-toggle)
    - [How Edits Are Requested](#how-edits-are-requested)
    - [Diff Computation](#diff-computation)
    - [Diff Tab and Visualization](#diff-tab-and-visualization)
@@ -39,6 +41,7 @@ This document describes the Nexus AI feature in Nexus, covering configuration, t
    - [Source File Protection](#source-file-protection)
 7. [Create Mode](#create-mode)
    - [Activating Create Mode](#activating-create-mode)
+   - [Chat Context Toggle](#chat-context-toggle-1)
    - [How Create Mode Works](#how-create-mode-works)
    - [Create Mode Output](#create-mode-output)
    - [Loading States — Create Progress](#loading-states--create-progress)
@@ -258,8 +261,9 @@ In **Ask Mode**, messages appear as styled bubbles in the messages container:
 - Content rendered as Markdown using `ReactMarkdown`, supporting formatted text, code blocks, lists, and other Markdown elements
 - **Code blocks with syntax highlighting**: Fenced code blocks (e.g., ` ```javascript `) are rendered with language-aware syntax highlighting using `react-syntax-highlighter` with Prism. Colors adapt to light/dark theme (oneLight / oneDark)
 - A **Copy** button appears below each assistant response
+- A **New File** button appears next to Copy on each assistant response — clicking it creates a new `Untitled.md` editor tab pre-populated with the response content, opened in preview mode
 
-The message area automatically scrolls to the latest message using smooth scrolling.
+The message area automatically scrolls to the bottom whenever a new request starts or messages arrive, ensuring the user always sees the latest activity. Users can scroll up manually to review earlier messages.
 
 **Clearing Chat:**
 
@@ -428,6 +432,15 @@ Each question is fully independent at the API level. The Q&A history shown in th
 - Clearing the chat (delete icon in the header) removes all Ask mode history
 - Ask mode history is not persisted across sessions
 
+### New File from Response
+
+Every assistant message (in both Ask and multi-agent modes) includes a **New File** button next to the Copy button at the bottom of the response:
+
+- Click **New File** to instantly open a new `Untitled.md` editor tab containing the full response content
+- The tab opens in **preview mode** for immediate reading
+- The file is unsaved (`path: null`) — save it with `Ctrl+S` to write it to disk
+- Useful for turning a detailed AI response into a working document without copy-pasting
+
 ---
 
 ## Edit Mode and Diff System
@@ -443,6 +456,18 @@ Each question is fully independent at the API level. The Q&A history shown in th
 - Edit mode is disabled while a diff tab is already open
 - If a Serper key is configured, a **globe icon** toggle is shown next to the input. When enabled, a web search runs before the edit request and its results are included as context in the edit prompt
 
+### Chat Context Toggle
+
+When there are messages in the Ask (or multi-agent) chat history, a **History icon** toggle button appears in the input toolbar while in Edit or Create mode:
+
+- Click the icon to **include Ask chat history as context** for the upcoming Edit or Create request
+- When enabled, the icon turns **blue** to indicate context is active
+- The toggle state persists in `config.json` (`aiChatContextEnabled`) and is restored on next launch
+- The button is only shown when there are actually Ask/multi-agent messages to include (it hides when the chat is empty)
+- The chat context is injected into the AI prompt as a clearly delimited block (see [How Edits Are Requested](#how-edits-are-requested) below), so the AI knows it is prior conversation context and not a direct instruction
+
+**Use case**: Ask a series of questions in Ask mode to research a topic, then switch to Edit or Create mode and enable the toggle so the AI can draw on what was just discussed when making changes or generating new content.
+
 ### How Edits Are Requested
 
 When the user sends a message in edit mode:
@@ -457,16 +482,21 @@ When the user sends a message in edit mode:
    Requested changes:
    {user's prompt}
 
+   --- PREVIOUS CHAT CONTEXT (use only if relevant to the edit) ---
+   [user]: {prior ask question}
+   [assistant]: {prior ask answer}
+   ... (only present when the Chat Context toggle is enabled)
+   --- END CHAT CONTEXT ---
+
    Current document:
    ```markdown
    {document content}
    ```
 
    Return a JSON object with the complete modified document.
-
    ```
 
-   ```
+
 2. The AI receives a system prompt instructing it to return only a JSON object:
 
    ```json
@@ -611,6 +641,10 @@ Create Mode generates a **complete, new Markdown document** from a user descript
 - The input placeholder changes to "Describe what you want to create... (e.g., 'A blog post about React hooks', 'A project README')"
 - The send button shows a create icon with a secondary (purple) color
 - Create mode is supported for all four providers: **Claude**, **OpenAI**, **Google Gemini**, and **xAI**
+
+### Chat Context Toggle
+
+The same **History icon** toggle available in Edit mode is also present in Create mode. When there are Ask or multi-agent messages in the chat history and the toggle is enabled, the chat context is included in the content generation prompt as a **Previous Chat Context** reference block. See [Chat Context Toggle](#chat-context-toggle) in the Edit Mode section for full details — the behavior is identical.
 
 ### How Create Mode Works
 
@@ -876,6 +910,7 @@ Diff state is no longer global — it lives on each diff tab's `IFile` object:
 - `aiChatDockWidth` - Width of the docked chat panel
 - `aiChatMode` - Current AI chat mode (`'ask'`, `'edit'`, or `'create'`)
 - `aiChatModel` - Last selected AI model
+- `aiChatContextEnabled` - Whether the Chat Context toggle is on (includes Ask history in Edit/Create requests)
 
 **Provider Mode Restrictions** (defined in `aiProviderModeRestrictions.ts`):
 
