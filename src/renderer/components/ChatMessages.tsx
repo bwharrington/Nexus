@@ -5,6 +5,7 @@ import ReactMarkdown, { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
+import katex from 'katex';
 import { preprocessMathDelimiters } from '../utils/mathPreprocess';
 import type { AIMessage } from '../hooks/useAIChat';
 import { CodeBlock } from './CodeBlock';
@@ -214,11 +215,27 @@ const DIFF_REVIEW_MESSAGES = [
 const chatRemarkPlugins = [remarkGfm, remarkMath];
 const chatRehypePlugins = [rehypeKatex];
 
+const KATEX_LANGUAGES = new Set(['latex', 'tex', 'math']);
+
 const chatMarkdownComponents: Components = {
     code({ node, className, children, ...props }) {
         const match = /language-(\w+)/.exec(className || '');
         const language = match ? match[1] : '';
         const isBlock = node?.position && String(children).includes('\n');
+
+        if (isBlock && KATEX_LANGUAGES.has(language)) {
+            const latex = String(children).replace(/\n$/, '');
+            try {
+                const html = katex.renderToString(latex, {
+                    displayMode: true,
+                    throwOnError: false,
+                    output: 'html',
+                });
+                return <span dangerouslySetInnerHTML={{ __html: html }} />;
+            } catch {
+                // Fall through to CodeBlock on render failure
+            }
+        }
 
         if (language && isBlock) {
             const code = String(children).replace(/\n$/, '');
