@@ -36,7 +36,8 @@
       "WebFetch(domain:sdk.vercel.ai)",
       "Bash(npx webpack:*)",
       "Bash(npm view:*)",
-      "Bash(grep -r \"winston\\\\|pino\\\\|bunyan\\\\|electron-log\" /c/Projects/Nexus/package.json /c/Projects/Nexus/src --include=*.ts --include=*.tsx --include=*.json)"
+      "Bash(grep -r \"winston\\\\|pino\\\\|bunyan\\\\|electron-log\" /c/Projects/Nexus/package.json /c/Projects/Nexus/src --include=*.ts --include=*.tsx --include=*.json)",
+      "Bash(npm list:*)"
     ]
   }
 }
