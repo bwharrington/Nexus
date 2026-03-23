@@ -1,10 +1,11 @@
 import { ipcMain, app } from 'electron';
 import * as https from 'https';
-import { log, logError } from './logger';
+import { log, logError, logDebug, logInfo, logWarn } from './logger';
 import { callXAiApi, callXAiApiWithJsonMode, listModels, hasApiKey as hasXaiApiKey, DEFAULT_XAI_MODELS, Message } from './services/xaiApi';
-import { callXAiMultiAgentApi } from './services/xaiMultiAgentApi';
+import { callXAiMultiAgentApi, callXAiMultiAgentApiStreaming } from './services/xaiMultiAgentApi';
 import type { MultiAgentTool, MultiAgentUsage } from './services/xaiMultiAgentApi';
 import type { ReasoningEffort } from '../shared/multiAgentUtils';
+import type { MultiAgentStreamUpdate, MultiAgentStreamData } from '../shared/multiAgentStreamTypes';
 import { callClaudeApi, callClaudeApiWithSystemPrompt, listClaudeModels, hasApiKey as hasClaudeApiKey, DEFAULT_CLAUDE_MODELS } from './services/claudeApi';
 import { callOpenAIApi, callOpenAIApiWithJsonMode, listOpenAIModels, hasApiKey as hasOpenAIApiKey, DEFAULT_OPENAI_MODELS } from './services/openaiApi';
 import { callGeminiApi, callGeminiApiWithJsonMode, listGeminiModels, hasApiKey as hasGeminiApiKey, DEFAULT_GEMINI_MODELS } from './services/geminiApi';
@@ -122,7 +123,7 @@ Example response format:
 
 
 export function registerAIIpcHandlers() {
-    log('Registering AI IPC handlers');
+    logDebug('Registering AI IPC handlers');
     const activeChatRequests = new Map<string, AbortController>();
 
     const getControllerForRequest = (requestId?: string): AbortController | undefined => {
@@ -142,7 +143,7 @@ export function registerAIIpcHandlers() {
 
     // xAI Chat Request
     ipcMain.handle('ai:chat-request', async (_event, data: AIChatRequestData): Promise<AIChatResponse> => {
-        log('AI IPC: chat-request', { model: data.model, messageCount: data.messages.length, maxTokens: data.maxTokens });
+        logInfo('AI IPC: chat-request', { model: data.model, messageCount: data.messages.length, maxTokens: data.maxTokens });
         const controller = getControllerForRequest(data.requestId);
         try {
             const result = await callXAiApi(data.messages, data.model, controller?.signal, data.maxTokens);
@@ -157,7 +158,7 @@ export function registerAIIpcHandlers() {
 
     // Claude Chat Request
     ipcMain.handle('ai:claude-chat-request', async (_event, data: AIChatRequestData): Promise<AIChatResponse> => {
-        log('AI IPC: claude-chat-request', { model: data.model, messageCount: data.messages.length, maxTokens: data.maxTokens });
+        logInfo('AI IPC: claude-chat-request', { model: data.model, messageCount: data.messages.length, maxTokens: data.maxTokens });
         const controller = getControllerForRequest(data.requestId);
         try {
             const result = await callClaudeApi(data.messages, data.model, controller?.signal, data.maxTokens);
@@ -172,7 +173,7 @@ export function registerAIIpcHandlers() {
 
     // List xAI Models
     ipcMain.handle('ai:list-models', async (): Promise<AIModelsResponse> => {
-        log('AI IPC: list-models');
+        logDebug('AI IPC: list-models');
         try {
             const models = await listModels();
             const modelOptions: AIModelOption[] = models.map(m => ({
@@ -181,14 +182,14 @@ export function registerAIIpcHandlers() {
             }));
             return { success: true, models: modelOptions };
         } catch (error) {
-            logError('AI IPC: list-models failed, using defaults', error as Error);
+            logWarn('AI IPC: list-models failed, using defaults', { error: (error as Error).message });
             return { success: true, models: DEFAULT_XAI_MODELS };
         }
     });
 
     // List Claude Models
     ipcMain.handle('ai:list-claude-models', async (): Promise<AIModelsResponse> => {
-        log('AI IPC: list-claude-models');
+        logDebug('AI IPC: list-claude-models');
         try {
             const models = await listClaudeModels();
             const modelOptions: AIModelOption[] = models.map(m => ({
@@ -197,14 +198,14 @@ export function registerAIIpcHandlers() {
             }));
             return { success: true, models: modelOptions };
         } catch (error) {
-            logError('AI IPC: list-claude-models failed, using defaults', error as Error);
+            logWarn('AI IPC: list-claude-models failed, using defaults', { error: (error as Error).message });
             return { success: true, models: DEFAULT_CLAUDE_MODELS };
         }
     });
 
     // OpenAI Chat Request
     ipcMain.handle('ai:openai-chat-request', async (_event, data: AIChatRequestData): Promise<AIChatResponse> => {
-        log('AI IPC: openai-chat-request', { model: data.model, messageCount: data.messages.length, maxTokens: data.maxTokens });
+        logInfo('AI IPC: openai-chat-request', { model: data.model, messageCount: data.messages.length, maxTokens: data.maxTokens });
         const controller = getControllerForRequest(data.requestId);
         try {
             const result = await callOpenAIApi(data.messages, data.model, controller?.signal, data.maxTokens);
@@ -219,7 +220,7 @@ export function registerAIIpcHandlers() {
 
     // Gemini Chat Request
     ipcMain.handle('ai:gemini-chat-request', async (_event, data: AIChatRequestData): Promise<AIChatResponse> => {
-        log('AI IPC: gemini-chat-request', { model: data.model, messageCount: data.messages.length, maxTokens: data.maxTokens });
+        logInfo('AI IPC: gemini-chat-request', { model: data.model, messageCount: data.messages.length, maxTokens: data.maxTokens });
         const controller = getControllerForRequest(data.requestId);
         try {
             const result = await callGeminiApi(data.messages, data.model, controller?.signal, data.maxTokens);
@@ -234,25 +235,26 @@ export function registerAIIpcHandlers() {
 
     // List Gemini Models
     ipcMain.handle('ai:list-gemini-models', async (): Promise<AIModelsResponse> => {
-        log('AI IPC: list-gemini-models');
+        logDebug('AI IPC: list-gemini-models');
         try {
             const models = await listGeminiModels();
             return { success: true, models };
         } catch (error) {
-            logError('AI IPC: list-gemini-models failed, using defaults', error as Error);
+            logWarn('AI IPC: list-gemini-models failed, using defaults', { error: (error as Error).message });
             return { success: true, models: DEFAULT_GEMINI_MODELS };
         }
     });
 
-    // xAI Multi-Agent Request (Responses API)
+    // xAI Multi-Agent Request (Responses API) — with verbose streaming
     ipcMain.handle('ai:multi-agent-request', async (_event, data: AIMultiAgentRequestData): Promise<AIMultiAgentResponse> => {
-        log('AI IPC: multi-agent-request', {
+        logInfo('AI IPC: multi-agent-request', {
             model: data.model,
             inputCount: data.input.length,
             tools: data.tools?.map(t => t.type),
             reasoningEffort: data.reasoningEffort,
             hasPreviousResponse: !!data.previousResponseId,
         });
+        const sender = _event.sender;
         const controller = getControllerForRequest(data.requestId);
         try {
             const tools = data.tools as MultiAgentTool[] | undefined;
@@ -261,14 +263,44 @@ export function registerAIIpcHandlers() {
                 role: m.role as 'user' | 'assistant',
                 content: m.content,
             }));
-            const result = await callXAiMultiAgentApi(
-                input,
-                data.model,
-                tools,
-                reasoningEffort,
-                data.previousResponseId,
-                controller?.signal,
-            );
+
+            // Push streaming events to the renderer via webContents.send
+            const onStreamEvent = (update: MultiAgentStreamUpdate) => {
+                if (!sender.isDestroyed()) {
+                    const streamData: MultiAgentStreamData = {
+                        requestId: data.requestId ?? '',
+                        event: update,
+                    };
+                    sender.send('ai:multi-agent-stream', streamData);
+                }
+            };
+
+            let result;
+            try {
+                result = await callXAiMultiAgentApiStreaming(
+                    input,
+                    data.model,
+                    onStreamEvent,
+                    tools,
+                    reasoningEffort,
+                    data.previousResponseId,
+                    controller?.signal,
+                );
+            } catch (streamError) {
+                // Fallback to synchronous API if streaming fails
+                logWarn('AI IPC: streaming failed, falling back to sync', {
+                    error: (streamError as Error).message,
+                });
+                result = await callXAiMultiAgentApi(
+                    input,
+                    data.model,
+                    tools,
+                    reasoningEffort,
+                    data.previousResponseId,
+                    controller?.signal,
+                );
+            }
+
             return {
                 success: true,
                 response: result.content,
@@ -307,7 +339,7 @@ export function registerAIIpcHandlers() {
 
     // List OpenAI Models
     ipcMain.handle('ai:list-openai-models', async (): Promise<AIModelsResponse> => {
-        log('AI IPC: list-openai-models');
+        logDebug('AI IPC: list-openai-models');
         try {
             const models = await listOpenAIModels();
             const modelOptions: AIModelOption[] = models.map(m => ({
@@ -316,14 +348,14 @@ export function registerAIIpcHandlers() {
             }));
             return { success: true, models: modelOptions };
         } catch (error) {
-            logError('AI IPC: list-openai-models failed, using defaults', error as Error);
+            logWarn('AI IPC: list-openai-models failed, using defaults', { error: (error as Error).message });
             return { success: true, models: DEFAULT_OPENAI_MODELS };
         }
     });
 
     // AI Edit Request (structured output for Claude and OpenAI only)
     ipcMain.handle('ai:edit-request', async (_event, data: AIEditRequestData): Promise<AIEditResponse> => {
-        log('AI IPC: edit-request', { provider: data.provider, model: data.model, messageCount: data.messages.length });
+        logInfo('AI IPC: edit-request', { provider: data.provider, model: data.model, messageCount: data.messages.length });
         const controller = getControllerForRequest(data.requestId);
 
         try {
@@ -368,7 +400,7 @@ export function registerAIIpcHandlers() {
             
             try {
                 // Log the raw response for debugging
-                log('AI IPC: Raw edit response received', { 
+                logDebug('AI IPC: Raw edit response received', { 
                     provider: data.provider,
                     responseLength: response.length,
                     responsePreview: response.substring(0, 500) + (response.length > 500 ? '...' : '')
@@ -424,20 +456,20 @@ export function registerAIIpcHandlers() {
                     throw new SyntaxError('Could not extract valid JSON from AI response');
                 }
 
-                log('AI IPC: Cleaned JSON string for parsing', {
+                logDebug('AI IPC: Cleaned JSON string for parsing', {
                     cleanedLength: jsonStr.length,
                     cleanedPreview: jsonStr.substring(0, 500) + (jsonStr.length > 500 ? '...' : '')
                 });
 
                 if (!parsed.modifiedContent) {
-                    log('AI IPC: Parsed JSON missing modifiedContent field', { parsedKeys: Object.keys(parsed) });
+                    logWarn('AI IPC: Parsed JSON missing modifiedContent field', { parsedKeys: Object.keys(parsed) });
                     return {
                         success: false,
                         error: 'AI response missing modifiedContent field'
                     };
                 }
 
-                log('AI IPC: Successfully parsed edit response', {
+                logDebug('AI IPC: Successfully parsed edit response', {
                     hasModifiedContent: !!parsed.modifiedContent,
                     hasSummary: !!parsed.summary,
                     modifiedContentLength: parsed.modifiedContent?.length || 0
@@ -450,7 +482,7 @@ export function registerAIIpcHandlers() {
                 };
             } catch (parseError) {
                 logError('AI IPC: Failed to parse edit response as JSON', parseError as Error);
-                log('AI IPC: Edit response parse failure details', {
+                logDebug('AI IPC: Edit response parse failure details', {
                     provider: data.provider,
                     model: data.model,
                     responseLength: response.length,
@@ -473,7 +505,7 @@ export function registerAIIpcHandlers() {
 
     // Get Provider Statuses
     ipcMain.handle('ai:get-provider-status', async (): Promise<AIProviderStatusesResponse> => {
-        log('AI IPC: get-provider-status');
+        logDebug('AI IPC: get-provider-status');
 
         const result: AIProviderStatusesResponse = {
             xai: { enabled: false, status: 'unchecked' },
@@ -526,13 +558,13 @@ export function registerAIIpcHandlers() {
             }
         }
 
-        log('AI IPC: provider status result', result);
+        logDebug('AI IPC: provider status result', result);
         return result;
     });
 
     // Serper web search (legacy — used by Plan mode)
     ipcMain.handle('ai:serper-search', async (_event, query: string, numResults: number = 5): Promise<SerperSearchResponse> => {
-        log('AI IPC: serper-search', { query });
+        logInfo('AI IPC: serper-search', { query });
         try {
             const apiKey = getApiKey('serper');
             if (!apiKey) {
@@ -570,7 +602,7 @@ export function registerAIIpcHandlers() {
                 req.end();
             });
 
-            log('AI IPC: serper-search complete', { query, resultCount: results.length });
+            logDebug('AI IPC: serper-search complete', { query, resultCount: results.length });
             return { success: true, results };
         } catch (error) {
             logError('AI IPC: serper-search failed', error as Error);
@@ -582,7 +614,7 @@ export function registerAIIpcHandlers() {
 
     // Web Search via Serper
     ipcMain.handle('web:search', async (_event, data: { query: string; numResults?: number; requestId?: string }) => {
-        log('AI IPC: web:search', { query: data.query, numResults: data.numResults });
+        logDebug('AI IPC: web:search', { query: data.query, numResults: data.numResults });
         const controller = getControllerForRequest(data.requestId);
         try {
             const result = await searchSerper(data.query, data.numResults ?? 5, controller?.signal);
@@ -597,7 +629,7 @@ export function registerAIIpcHandlers() {
 
     // Fetch & Extract Page Content
     ipcMain.handle('web:fetch-page', async (_event, data: { url: string; requestId?: string }) => {
-        log('AI IPC: web:fetch-page', { url: data.url });
+        logDebug('AI IPC: web:fetch-page', { url: data.url });
         const controller = getControllerForRequest(data.requestId);
         try {
             const result = await fetchAndExtractPage(data.url, controller?.signal);
@@ -614,6 +646,6 @@ export function registerAIIpcHandlers() {
     ipcMain.handle('web:has-serper-key', async () => {
         return hasSerperKey();
     });
-    log('AI IPC handlers registered');
+    logDebug('AI IPC handlers registered');
 }
 

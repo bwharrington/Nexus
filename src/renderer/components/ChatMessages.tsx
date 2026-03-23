@@ -15,7 +15,7 @@ import { EditProgress } from './EditProgress';
 import { MultiAgentProgress } from './MultiAgentProgress';
 import type { CreatePhase } from '../hooks/useAICreate';
 import type { AskPhase } from '../hooks/useAIAsk';
-import type { MultiAgentPhase } from '../hooks/useAIMultiAgent';
+import type { MultiAgentPhase, MultiAgentStreamState } from '../hooks/useAIMultiAgent';
 import type { WebSearchPhase } from '../hooks/useWebSearch';
 import type { AIChatMode } from '../types/global';
 
@@ -284,6 +284,7 @@ interface ChatMessagesProps {
     multiAgentPhase?: MultiAgentPhase;
     multiAgentError?: string | null;
     multiAgentAgentCount?: 4 | 16;
+    multiAgentStreamState?: MultiAgentStreamState | null;
     messagesEndRef: React.RefObject<HTMLDivElement | null>;
     onCreateFileFromMessage?: (content: string) => void;
     chatSearchQuery?: string;
@@ -314,6 +315,7 @@ export function ChatMessages({
     multiAgentPhase,
     multiAgentError,
     multiAgentAgentCount = 4,
+    multiAgentStreamState,
     messagesEndRef,
     onCreateFileFromMessage,
     chatSearchQuery,
@@ -445,6 +447,7 @@ export function ChatMessages({
                 <MultiAgentProgress
                     phase={multiAgentPhase}
                     agentCount={multiAgentAgentCount}
+                    streamState={multiAgentStreamState}
                 />
             )}
             {isEditLoading && (

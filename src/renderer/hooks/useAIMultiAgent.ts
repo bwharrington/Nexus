@@ -1,5 +1,6 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import type { AIMessage, AttachmentData } from './useAIChat';
+import type { MultiAgentStreamUpdateGlobal, MultiAgentStreamDataGlobal } from '../types/global';
 
 export type MultiAgentPhase = 'agents-working' | null;
 
@@ -7,6 +8,15 @@ export interface MultiAgentUsageInfo {
     input_tokens: number;
     output_tokens: number;
     reasoning_tokens?: number;
+}
+
+export interface MultiAgentStreamState {
+    events: MultiAgentStreamUpdateGlobal[];   // last 50 raw events for debug
+    eventCount: number;                       // total events received
+    reasoningTokens: number;
+    activeToolCalls: string[];                // tool names seen
+    agentActivities: string[];                // descriptions of agent activity
+    contentPreview: string;                   // first ~200 chars of streaming content
 }
 
 const MULTI_AGENT_SYSTEM_PROMPT = `You are a research assistant with access to multiple AI agents that collaborate to answer questions. Answer thoroughly using all available tools. Use Markdown formatting. Be comprehensive but well-organized with clear headings and structure.`;
@@ -18,7 +28,80 @@ export function useAIMultiAgent() {
     const [multiAgentPhase, setMultiAgentPhase] = useState<MultiAgentPhase>(null);
     const [previousResponseId, setPreviousResponseId] = useState<string | null>(null);
     const [lastUsage, setLastUsage] = useState<MultiAgentUsageInfo | null>(null);
+    const [streamState, setStreamState] = useState<MultiAgentStreamState | null>(null);
     const activeRequestIdRef = useRef<string | null>(null);
+
+    // Handle incoming stream events from the main process
+    const handleStreamEvent = useCallback((data: MultiAgentStreamDataGlobal) => {
+        // Only process events for our active request
+        if (data.requestId !== activeRequestIdRef.current) return;
+
+        const { event } = data;
+
+        // Log every event for discovery/debugging
+        console.log('[MultiAgent Stream]', event.type, event);
+
+        setStreamState(prev => {
+            const state = prev ?? {
+                events: [],
+                eventCount: 0,
+                reasoningTokens: 0,
+                activeToolCalls: [],
+                agentActivities: [],
+                contentPreview: '',
+            };
+
+            const updated: MultiAgentStreamState = {
+                ...state,
+                events: [...state.events.slice(-49), event],
+                eventCount: state.eventCount + 1,
+            };
+
+            switch (event.type) {
+                case 'agent-activity': {
+                    const name = event.agentName ?? 'Agent';
+                    if (!state.agentActivities.includes(name)) {
+                        updated.agentActivities = [...state.agentActivities, name];
+                    }
+                    break;
+                }
+                case 'tool-call': {
+                    const toolName = event.toolName ?? 'unknown';
+                    if (!state.activeToolCalls.includes(toolName)) {
+                        updated.activeToolCalls = [...state.activeToolCalls, toolName];
+                    }
+                    break;
+                }
+                case 'reasoning': {
+                    if (event.reasoningTokens != null) {
+                        updated.reasoningTokens = event.reasoningTokens;
+                    } else {
+                        updated.reasoningTokens = state.reasoningTokens + 1;
+                    }
+                    break;
+                }
+                case 'content-delta': {
+                    const preview = state.contentPreview + (event.contentDelta ?? '');
+                    updated.contentPreview = preview.slice(0, 200);
+                    break;
+                }
+                case 'done': {
+                    if (event.reasoningTokens != null) {
+                        updated.reasoningTokens = event.reasoningTokens;
+                    }
+                    break;
+                }
+            }
+
+            return updated;
+        });
+    }, []);
+
+    // Register IPC listener for stream events
+    useEffect(() => {
+        const cleanup = window.electronAPI.onMultiAgentStream(handleStreamEvent);
+        return cleanup;
+    }, [handleStreamEvent]);
 
     const submitMultiAgent = useCallback(async (
         question: string,
@@ -38,6 +121,7 @@ export function useAIMultiAgent() {
         setIsMultiAgentLoading(true);
         setMultiAgentError(null);
         setMultiAgentPhase('agents-working');
+        setStreamState(null);
 
         const requestId = `ai-multi-agent-${Date.now()}-${Math.random().toString(36).slice(2)}`;
         activeRequestIdRef.current = requestId;
@@ -136,6 +220,7 @@ export function useAIMultiAgent() {
         setMultiAgentPhase(null);
         setPreviousResponseId(null);
         setLastUsage(null);
+        setStreamState(null);
     }, []);
 
     return {
@@ -144,6 +229,7 @@ export function useAIMultiAgent() {
         multiAgentPhase,
         multiAgentError,
         lastUsage,
+        streamState,
         submitMultiAgent,
         cancelMultiAgent,
         clearMultiAgent,

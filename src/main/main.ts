@@ -3,7 +3,8 @@ import * as path from 'path';
 import * as fs from 'fs/promises';
 import * as fsSync from 'fs';
 import * as dotenv from 'dotenv';
-import { initLogger, log, logError, flushLogsSync, getLogFilePath, getLogsDir } from './logger';
+import { initLogger, log, logError, logDebug, logInfo, logWarn, setLogLevel, flushLogsSync, getLogFilePath, getLogsDir } from './logger';
+import { LogLevel } from '../shared/logLevel';
 import { registerAIIpcHandlers } from './aiIpcHandlers';
 import { registerSecureStorageIpcHandlers } from './secureStorageIpcHandlers';
 import { loadEncryptedKeys } from './services/secureStorage';
@@ -59,6 +60,7 @@ const defaultConfig = {
     devToolsOpen: false,
     aiModels: {} as Record<string, Record<string, { enabled: boolean }>>,
     silentFileUpdates: true,
+    logLevel: 'info',
     imageSaveFolder: 'images' as string,
     aiChatDocked: false,
     aiChatDockWidth: 420,
@@ -114,8 +116,9 @@ async function saveConfig(config: typeof defaultConfig) {
     try {
         const configPath = getConfigPath();
         await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
+        logDebug('Config saved to disk');
     } catch (error) {
-        console.error('Failed to save config:', error);
+        logError('Failed to save config', error as Error);
     }
 }
 
@@ -162,7 +165,7 @@ async function syncAIModelsConfig() {
                     if (!config.aiModels!.xai![model.id]) {
                         config.aiModels!.xai![model.id] = { enabled: true };
                         changed = true;
-                        log('Added new xAI model to config', { modelId: model.id });
+                        logDebug('Added new xAI model to config', { modelId: model.id });
                     }
                 }
                 // Remove models that no longer pass the filter (e.g. image/video models)
@@ -171,12 +174,12 @@ async function syncAIModelsConfig() {
                     if (!allowedIds.has(modelId)) {
                         delete config.aiModels!.xai![modelId];
                         changed = true;
-                        log('Removed filtered-out xAI model from config', { modelId });
+                        logDebug('Removed filtered-out xAI model from config', { modelId });
                     }
                 }
                 return changed;
             } catch (error) {
-                logError('Failed to sync xAI models', error as Error);
+                logWarn('Failed to sync xAI models', { error: (error as Error).message });
                 return false;
             }
         }
@@ -191,7 +194,7 @@ async function syncAIModelsConfig() {
                     if (!config.aiModels!.claude![model.id]) {
                         config.aiModels!.claude![model.id] = { enabled: true };
                         changed = true;
-                        log('Added new Claude model to config', { modelId: model.id });
+                        logDebug('Added new Claude model to config', { modelId: model.id });
                     }
                 }
                 // Remove models that no longer pass the filter (e.g. old claude-3- base generation)
@@ -200,12 +203,12 @@ async function syncAIModelsConfig() {
                     if (!allowedIds.has(modelId)) {
                         delete config.aiModels!.claude![modelId];
                         changed = true;
-                        log('Removed filtered-out Claude model from config', { modelId });
+                        logDebug('Removed filtered-out Claude model from config', { modelId });
                     }
                 }
                 return changed;
             } catch (error) {
-                logError('Failed to sync Claude models', error as Error);
+                logWarn('Failed to sync Claude models', { error: (error as Error).message });
                 return false;
             }
         }
@@ -220,12 +223,12 @@ async function syncAIModelsConfig() {
                     if (!config.aiModels!.openai![model.id]) {
                         config.aiModels!.openai![model.id] = { enabled: true };
                         changed = true;
-                        log('Added new OpenAI model to config', { modelId: model.id });
+                        logDebug('Added new OpenAI model to config', { modelId: model.id });
                     }
                 }
                 return changed;
             } catch (error) {
-                logError('Failed to sync OpenAI models', error as Error);
+                logWarn('Failed to sync OpenAI models', { error: (error as Error).message });
                 return false;
             }
         }
@@ -240,7 +243,7 @@ async function syncAIModelsConfig() {
                     if (!config.aiModels!.gemini![model.id]) {
                         config.aiModels!.gemini![model.id] = { enabled: true };
                         changed = true;
-                        log('Added new Gemini model to config', { modelId: model.id });
+                        logDebug('Added new Gemini model to config', { modelId: model.id });
                     }
                 }
                 // Remove models that no longer pass the filter (e.g. previously synced
@@ -250,12 +253,12 @@ async function syncAIModelsConfig() {
                     if (!allowedIds.has(modelId)) {
                         delete config.aiModels!.gemini![modelId];
                         changed = true;
-                        log('Removed filtered-out Gemini model from config', { modelId });
+                        logDebug('Removed filtered-out Gemini model from config', { modelId });
                     }
                 }
                 return changed;
             } catch (error) {
-                logError('Failed to sync Gemini models', error as Error);
+                logWarn('Failed to sync Gemini models', { error: (error as Error).message });
                 return false;
             }
         }
@@ -307,7 +310,7 @@ function watchFile(filePath: string) {
         });
 
         fileWatchers.set(filePath, watcher);
-        log('Started watching file', { filePath });
+        logDebug('Started watching file', { filePath });
     } catch (error) {
         logError(`Failed to watch file: ${filePath}`, error as Error);
     }
@@ -319,7 +322,7 @@ function unwatchFile(filePath: string) {
     if (watcher) {
         watcher.close();
         fileWatchers.delete(filePath);
-        log('Stopped watching file', { filePath });
+        logDebug('Stopped watching file', { filePath });
     }
 }
 
@@ -343,7 +346,7 @@ function watchDirectory(dirPath: string) {
         });
 
         directoryWatchers.set(dirPath, watcher);
-        log('Started watching directory', { dirPath });
+        logDebug('Started watching directory', { dirPath });
     } catch (error) {
         logError(`Failed to watch directory: ${dirPath}`, error as Error);
     }
@@ -355,7 +358,7 @@ function unwatchDirectory(dirPath: string) {
     if (watcher) {
         watcher.close();
         directoryWatchers.delete(dirPath);
-        log('Stopped watching directory', { dirPath });
+        logDebug('Stopped watching directory', { dirPath });
     }
 }
 
@@ -377,6 +380,8 @@ function registerIpcHandlers() {
             return null;
         }
 
+        logInfo('File open dialog completed', { fileCount: result.filePaths.length });
+
         // Read all selected files
         const files = [];
         for (const filePath of result.filePaths) {
@@ -385,7 +390,7 @@ function registerIpcHandlers() {
                 const lineEnding = detectLineEnding(content);
                 files.push({ filePath, content, lineEnding });
             } catch (error) {
-                console.error(`Failed to read file ${filePath}:`, error);
+                logError(`Failed to read file ${filePath}`, error as Error);
             }
         }
         
@@ -394,11 +399,11 @@ function registerIpcHandlers() {
 
     // File: Read specific file
     ipcMain.handle('file:read', async (_event, filePath: string) => {
-        log('IPC: file:read called', { filePath });
+        logDebug('IPC: file:read called', { filePath });
         try {
             const content = await fs.readFile(filePath, 'utf-8');
             const lineEnding = detectLineEnding(content);
-            log('IPC: file:read success', { filePath, contentLength: content.length, lineEnding });
+            logDebug('IPC: file:read success', { filePath, contentLength: content.length, lineEnding });
             return { filePath, content, lineEnding };
         } catch (error) {
             logError('IPC: file:read failed', error);
@@ -408,7 +413,7 @@ function registerIpcHandlers() {
 
     // File: Read for attachment (supports images and text files)
     ipcMain.handle('file:read-for-attachment', async (_event, filePath: string) => {
-        log('IPC: file:read-for-attachment called', { filePath });
+        logDebug('IPC: file:read-for-attachment called', { filePath });
         try {
             const ext = path.extname(filePath).toLowerCase();
             const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
@@ -424,7 +429,7 @@ function registerIpcHandlers() {
                     : ext === '.webp' ? 'image/webp'
                     : 'image/bmp';
 
-                log('IPC: file:read-for-attachment success (image)', { filePath, size: buffer.length });
+                logDebug('IPC: file:read-for-attachment success (image)', { filePath, size: buffer.length });
                 return {
                     type: 'image',
                     mimeType,
@@ -434,7 +439,7 @@ function registerIpcHandlers() {
             } else if (textExtensions.includes(ext) || !ext) {
                 // Read as text
                 const content = await fs.readFile(filePath, 'utf-8');
-                log('IPC: file:read-for-attachment success (text)', { filePath, size: content.length });
+                logDebug('IPC: file:read-for-attachment success (text)', { filePath, size: content.length });
                 return {
                     type: 'text',
                     data: content,
@@ -471,9 +476,10 @@ function registerIpcHandlers() {
             
             const normalizedContent = normalizeLineEndings(content, lineEnding);
             await fs.writeFile(filePath, normalizedContent, 'utf-8');
+            logInfo('File saved', { filePath });
             return { success: true, filePath };
         } catch (error) {
-            console.error('Failed to save file:', error);
+            logError('Failed to save file', error as Error);
             return { success: false, filePath, error: String(error) };
         }
     });
@@ -554,9 +560,10 @@ function registerIpcHandlers() {
     ipcMain.handle('file:rename', async (_event, oldPath: string, newPath: string) => {
         try {
             await fs.rename(oldPath, newPath);
+            logInfo('File renamed', { oldPath, newPath });
             return { success: true };
         } catch (error) {
-            console.error('Failed to rename file:', error);
+            logError('Failed to rename file', error as Error);
             throw error;
         }
     });
@@ -578,26 +585,26 @@ function registerIpcHandlers() {
 
     // Get initial files to open (from command line)
     ipcMain.handle('get-initial-files', () => {
-        log('IPC: get-initial-files called', { pendingFiles: pendingFilesToOpen });
+        logDebug('IPC: get-initial-files called', { pendingFiles: pendingFilesToOpen });
         const files = pendingFilesToOpen;
         pendingFilesToOpen = []; // Clear after retrieving
-        log('IPC: Returning files and clearing pending', { files });
+        logDebug('IPC: Returning files and clearing pending', { files });
         return files;
     });
 
     // Renderer ready - send pending files
     ipcMain.handle('renderer-ready', () => {
-        log('IPC: renderer-ready called', { pendingFiles: pendingFilesToOpen });
+        logDebug('IPC: renderer-ready called', { pendingFiles: pendingFilesToOpen });
         if (pendingFilesToOpen.length > 0 && mainWindow && !mainWindow.isDestroyed()) {
-            log('Sending files to renderer after ready signal', { files: pendingFilesToOpen });
+            logDebug('Sending files to renderer after ready signal', { files: pendingFilesToOpen });
             mainWindow.webContents.send('open-files-from-args', pendingFilesToOpen);
-            log('IPC event "open-files-from-args" sent to renderer');
+            logDebug('IPC event "open-files-from-args" sent to renderer');
             const files = [...pendingFilesToOpen];
             pendingFilesToOpen = []; // Clear after sending
-            log('Returning files from renderer-ready', { files });
+            logDebug('Returning files from renderer-ready', { files });
             return files;
         }
-        log('No files to send from renderer-ready');
+        logDebug('No files to send from renderer-ready');
         return [];
     });
 
@@ -657,12 +664,24 @@ function registerIpcHandlers() {
         return getLogFilePath();
     });
 
+    // Log: Set level
+    ipcMain.handle('log:set-level', (_event, level: string) => {
+        setLogLevel(level as LogLevel);
+        logInfo(`Log level changed to: ${level}`);
+    });
+
     // Console: Log message (from renderer)
     ipcMain.on('console:log', (_event, level: string, ...args: any[]) => {
-        const message = args.map(arg => 
+        const message = args.map(arg =>
             typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
         ).join(' ');
-        log(`[RENDERER ${level.toUpperCase()}] ${message}`);
+        const prefixed = `[RENDERER] ${message}`;
+        switch (level) {
+            case 'error': logError(prefixed, null); break;
+            case 'warn': logWarn(prefixed); break;
+            case 'info': logInfo(prefixed); break;
+            default: logDebug(prefixed); break;
+        }
     });
 
     // Dialog: External change
@@ -740,11 +759,11 @@ function registerIpcHandlers() {
         try {
             const parsed = new URL(url);
             if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-                log('Blocked unsafe protocol in shell:open-external', { protocol: parsed.protocol });
+                logWarn('Blocked unsafe protocol in shell:open-external', { protocol: parsed.protocol });
                 return;
             }
         } catch {
-            log('Blocked malformed URL in shell:open-external');
+            logWarn('Blocked malformed URL in shell:open-external');
             return;
         }
         await shell.openExternal(url);
@@ -770,7 +789,7 @@ function registerIpcHandlers() {
 
     // File: Save clipboard image to disk
     ipcMain.handle('file:save-image', async (_event, base64Data: string, documentDir: string) => {
-        log('IPC: file:save-image called', { documentDir });
+        logDebug('IPC: file:save-image called', { documentDir });
         try {
             // Load config to get image save folder name
             const config = await loadConfig();
@@ -810,7 +829,7 @@ function registerIpcHandlers() {
             // Build relative path with forward slashes
             const relativePath = `./${folderName}/${fileName}`.replace(/\\/g, '/');
 
-            log('IPC: file:save-image success', { filePath, relativePath, size: buffer.length });
+            logDebug('IPC: file:save-image success', { filePath, relativePath, size: buffer.length });
             return { success: true, relativePath };
         } catch (error) {
             logError('IPC: file:save-image failed', error as Error);
@@ -831,7 +850,7 @@ function registerIpcHandlers() {
 
     // File: Read directory recursively (returns tree of supported files)
     ipcMain.handle('file:read-directory', async (_event, dirPath: string, showAllFiles?: boolean) => {
-        log('IPC: file:read-directory called', { dirPath, showAllFiles });
+        logDebug('IPC: file:read-directory called', { dirPath, showAllFiles });
 
         interface DirNode {
             name: string;
@@ -895,7 +914,7 @@ function registerIpcHandlers() {
 
     // File: Create new file on disk
     ipcMain.handle('file:create-file', async (_event, dirPath: string) => {
-        log('IPC: file:create-file called', { dirPath });
+        logDebug('IPC: file:create-file called', { dirPath });
         try {
             let name = 'Untitled.md';
             let filePath = path.join(dirPath, name);
@@ -911,7 +930,7 @@ function registerIpcHandlers() {
                 }
             }
             await fs.writeFile(filePath, '', 'utf-8');
-            log('IPC: file:create-file success', { filePath });
+            logInfo('IPC: file:create-file success', { filePath });
             return { success: true, filePath, name };
         } catch (error) {
             logError('IPC: file:create-file failed', error as Error);
@@ -921,7 +940,7 @@ function registerIpcHandlers() {
 
     // File: Create new folder on disk
     ipcMain.handle('file:create-folder', async (_event, dirPath: string) => {
-        log('IPC: file:create-folder called', { dirPath });
+        logDebug('IPC: file:create-folder called', { dirPath });
         try {
             let name = 'New Folder';
             let folderPath = path.join(dirPath, name);
@@ -937,7 +956,7 @@ function registerIpcHandlers() {
                 }
             }
             await fs.mkdir(folderPath, { recursive: true });
-            log('IPC: file:create-folder success', { folderPath });
+            logInfo('IPC: file:create-folder success', { folderPath });
             return { success: true, folderPath, name };
         } catch (error) {
             logError('IPC: file:create-folder failed', error as Error);
@@ -947,7 +966,7 @@ function registerIpcHandlers() {
 
     // File: Move file or folder to a new parent directory
     ipcMain.handle('file:move', async (_event, sourcePath: string, destDir: string) => {
-        log('IPC: file:move called', { sourcePath, destDir });
+        logDebug('IPC: file:move called', { sourcePath, destDir });
         try {
             const baseName = path.basename(sourcePath);
             const destPath = path.join(destDir, baseName);
@@ -965,7 +984,7 @@ function registerIpcHandlers() {
                     throw renameError;
                 }
             }
-            log('IPC: file:move success', { destPath });
+            logInfo('IPC: file:move success', { destPath });
             return { success: true, destPath };
         } catch (error) {
             logError('IPC: file:move failed', error as Error);
@@ -975,7 +994,7 @@ function registerIpcHandlers() {
 
     // File: Copy file or folder
     ipcMain.handle('file:copy', async (_event, sourcePath: string, destDir: string) => {
-        log('IPC: file:copy called', { sourcePath, destDir });
+        logDebug('IPC: file:copy called', { sourcePath, destDir });
         try {
             const baseName = path.basename(sourcePath);
             let destPath = path.join(destDir, baseName);
@@ -1003,7 +1022,7 @@ function registerIpcHandlers() {
                 await fs.copyFile(sourcePath, destPath);
             }
 
-            log('IPC: file:copy success', { destPath });
+            logInfo('IPC: file:copy success', { destPath });
             return { success: true, destPath };
         } catch (error) {
             logError('IPC: file:copy failed', error as Error);
@@ -1013,7 +1032,7 @@ function registerIpcHandlers() {
 
     // File: Delete file or folder
     ipcMain.handle('file:delete', async (_event, itemPath: string) => {
-        log('IPC: file:delete called', { itemPath });
+        logDebug('IPC: file:delete called', { itemPath });
         try {
             const stat = await fs.stat(itemPath);
             if (stat.isDirectory()) {
@@ -1021,7 +1040,7 @@ function registerIpcHandlers() {
             } else {
                 await fs.unlink(itemPath);
             }
-            log('IPC: file:delete success', { itemPath });
+            logInfo('IPC: file:delete success', { itemPath });
             return { success: true };
         } catch (error) {
             logError('IPC: file:delete failed', error as Error);
@@ -1031,7 +1050,7 @@ function registerIpcHandlers() {
 
     // File: Save dropped image (copy existing file to images folder)
     ipcMain.handle('file:save-dropped-image', async (_event, sourcePath: string, documentDir: string) => {
-        log('IPC: file:save-dropped-image called', { sourcePath, documentDir });
+        logDebug('IPC: file:save-dropped-image called', { sourcePath, documentDir });
         try {
             const ext = path.extname(sourcePath).toLowerCase();
             if (!IMAGE_EXTENSIONS.includes(ext)) {
@@ -1074,7 +1093,7 @@ function registerIpcHandlers() {
             // Build relative path with forward slashes
             const relativePath = `./${folderName}/${fileName}`.replace(/\\/g, '/');
 
-            log('IPC: file:save-dropped-image success', { filePath, relativePath });
+            logDebug('IPC: file:save-dropped-image success', { filePath, relativePath });
             return { success: true, relativePath };
         } catch (error) {
             logError('IPC: file:save-dropped-image failed', error as Error);
@@ -1121,7 +1140,7 @@ function createWindow() {
             const parsed = new URL(navigationUrl);
             if (parsed.protocol !== 'file:') {
                 event.preventDefault();
-                log('Blocked external navigation attempt', { protocol: parsed.protocol });
+                logWarn('Blocked external navigation attempt', { protocol: parsed.protocol });
             }
         } catch {
             event.preventDefault();
@@ -1186,13 +1205,13 @@ function createWindow() {
     // Open DevTools in development mode only — never auto-open in packaged production builds
     if (!app.isPackaged) {
         if (process.env.NODE_ENV === 'development') {
-            log('Opening DevTools', { isDev: true });
+            logDebug('Opening DevTools', { isDev: true });
             mainWindow.webContents.openDevTools();
         } else {
             // Unpackaged but not NODE_ENV=development (e.g. electron . run from CLI): respect config
             loadConfig().then(config => {
                 if (config.devToolsOpen && mainWindow && !mainWindow.isDestroyed()) {
-                    log('Opening DevTools from config', { devToolsOpen: config.devToolsOpen });
+                    logDebug('Opening DevTools from config', { devToolsOpen: config.devToolsOpen });
                     mainWindow.webContents.openDevTools();
                 }
             });
@@ -1201,13 +1220,13 @@ function createWindow() {
 
     // Listen for DevTools open/close events (for native UI interactions)
     mainWindow.webContents.on('devtools-opened', async () => {
-        log('DevTools opened via native UI');
+        logDebug('DevTools opened via native UI');
         const config = await loadConfig();
         await saveConfig({ ...config, devToolsOpen: true });
     });
 
     mainWindow.webContents.on('devtools-closed', async () => {
-        log('DevTools closed via native UI');
+        logDebug('DevTools closed via native UI');
         const config = await loadConfig();
         await saveConfig({ ...config, devToolsOpen: false });
     });
@@ -1246,8 +1265,12 @@ function createWindow() {
 
 // This method will be called when Electron has finished initialization
 app.whenReady().then(async () => {
-    // Initialize logger first
-    initLogger();
+    // Load config to get log level before initializing logger
+    const startupConfig = await loadConfig();
+    const configLogLevel = (startupConfig.logLevel || 'info') as LogLevel;
+
+    // Initialize logger with configured level
+    initLogger(configLogLevel);
     log('=== App Starting ===');
     log('Electron app ready');
     log('Config file location', { path: getConfigPath() });
@@ -1257,38 +1280,38 @@ app.whenReady().then(async () => {
 
     // Handle command line arguments (file associations) - MUST be done before creating window
     const args = process.argv.slice(1); // Skip the first argument (electron executable)
-    log('Command line arguments received', { args, length: args.length });
+    logDebug('Command line arguments received', { args, length: args.length });
     
     // Filter for markdown files (case-insensitive) and exclude flags
     pendingFilesToOpen = args.filter(arg => {
         const isMarkdown = isMarkdownFile(arg);
         const isNotFlag = !arg.startsWith('--') && !arg.startsWith('-');
         const result = isMarkdown && isNotFlag;
-        log('Filtering argument', { arg, isMarkdown, isNotFlag, included: result });
+        logDebug('Filtering argument', { arg, isMarkdown, isNotFlag, included: result });
         return result;
     });
-    
-    log('Pending files to open after filtering', { pendingFilesToOpen, count: pendingFilesToOpen.length });
 
-    log('Registering IPC handlers');
+    logDebug('Pending files to open after filtering', { pendingFilesToOpen, count: pendingFilesToOpen.length });
+
+    logDebug('Registering IPC handlers');
     registerIpcHandlers();
     registerAIIpcHandlers();
     registerSecureStorageIpcHandlers();
 
     // Sync AI models with config
-    log('Syncing AI models config');
+    logDebug('Syncing AI models config');
     await syncAIModelsConfig();
 
     // Remove the native menu bar
     Menu.setApplicationMenu(null);
-    log('Creating main window');
+    logDebug('Creating main window');
     createWindow();
-    log('Main window created');
+    logDebug('Main window created');
 });
 
 // Handle second instance (when user tries to open another file while app is running)
 app.on('second-instance', (_event, commandLine) => {
-    log('Second instance detected', { commandLine });
+    logDebug('Second instance detected', { commandLine });
     
     // Focus the existing window
     if (mainWindow) {
@@ -1298,7 +1321,7 @@ app.on('second-instance', (_event, commandLine) => {
 
     // Handle command line arguments from second instance
     const args = commandLine.slice(1); // Skip the first argument
-    log('Second instance args', { args });
+    logDebug('Second instance args', { args });
     
     const filesToOpen = args.filter(arg => {
         const isMarkdown = isMarkdownFile(arg);
@@ -1306,10 +1329,10 @@ app.on('second-instance', (_event, commandLine) => {
         return isMarkdown && isNotFlag;
     });
     
-    log('Second instance files to open', { filesToOpen });
+    logDebug('Second instance files to open', { filesToOpen });
 
     if (filesToOpen.length > 0 && mainWindow && !mainWindow.isDestroyed()) {
-        log('Sending second instance files to renderer', { filesToOpen });
+        logDebug('Sending second instance files to renderer', { filesToOpen });
         mainWindow.webContents.send('open-files-from-args', filesToOpen);
     }
 });
@@ -1342,6 +1365,6 @@ app.on('render-process-gone', (_event, webContents, details) => {
 
 // Flush logs before quit
 app.on('before-quit', async () => {
-    log('App quitting, flushing logs');
+    logInfo('App quitting, flushing logs');
     await flushLogsSync();
 });

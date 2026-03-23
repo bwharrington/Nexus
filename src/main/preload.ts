@@ -65,7 +65,8 @@ const electronAPI = {
   
   // Log operations
   getLogPath: () => ipcRenderer.invoke('log:get-path'),
-  
+  setLogLevel: (level: string) => ipcRenderer.invoke('log:set-level', level),
+
   // Console logging
   sendConsoleLog: (level: string, ...args: any[]) => ipcRenderer.send('console:log', level, ...args),
   
@@ -145,6 +146,11 @@ const electronAPI = {
     previousResponseId?: string,
     requestId?: string,
   ) => ipcRenderer.invoke('ai:multi-agent-request', { input, model, tools, reasoningEffort, previousResponseId, requestId }),
+  onMultiAgentStream: (callback: (data: { requestId: string; event: unknown }) => void) => {
+    const handler = (_event: unknown, data: { requestId: string; event: unknown }) => callback(data);
+    ipcRenderer.on('ai:multi-agent-stream', handler);
+    return () => { ipcRenderer.removeListener('ai:multi-agent-stream', handler); };
+  },
   cancelAIChatRequest: (requestId: string) =>
     ipcRenderer.invoke('ai:cancel-request', requestId),
   cancelAIEditRequest: (requestId: string) =>

@@ -89,6 +89,7 @@ const defaultConfig: IConfig = {
     openFiles: [],
     defaultLineEnding: 'CRLF',
     aiChatDockWidth: 420,
+    logLevel: 'info',
 };
 
 // Initial state

@@ -406,6 +406,7 @@ The Settings dialog is a draggable modal window with the following characteristi
 | ----------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | **Default Line Ending** | Dropdown      | Choose between `CRLF` (Windows) or `LF` (Unix/Mac) for new files                                                           |
 | **Silent File Updates** | Toggle switch | When enabled, externally modified files are reloaded automatically in place. When disabled, you are prompted before refreshing |
+| **Log Level**           | Dropdown      | Controls the verbosity of the log file: `debug`, `info` (default), `warn`, `error`, or `off`. Changes take effect immediately without a restart |
 
 ##### AI API Keys
 
@@ -461,12 +462,13 @@ Settings are preserved across application updates and reinstalls. While direct e
 
 ### Logging
 
-Nexus maintains daily rotating debug log files for troubleshooting:
+Nexus maintains daily rotating log files for troubleshooting:
 
-- **Location:** `{userData}/logs/nexus-YYYY-MM-DD.log`
+- **Location:** `{appPath}/logs/nexus-YYYY-MM-DD.log` (in the same directory as the application executable)
 - **View Log:** Click the document icon in the toolbar to open the current day's log
 - **Content:** Timestamped entries for app events, IPC calls, errors, and crashes
 - **Rotation:** A new log file is created each calendar day. Logs from previous sessions on the same day are appended (not overwritten). Each session starts with a `=== Session Start ===` header.
+- **Log Level:** Configurable in **Settings → Basic Settings → Log Level**. Available levels: `debug`, `info` (default), `warn`, `error`, `off`. Higher levels suppress lower-priority messages (e.g., `warn` suppresses `debug` and `info`). Changes take effect immediately.
 
 #### Console Logging
 
@@ -493,7 +495,7 @@ Nexus includes integrated AI capabilities to assist with writing and editing you
 
 ### Nexus Assistant
 
-Access the Nexus Assistant by clicking the **AI** button in the toolbar (`Ctrl+Shift+A`). The chat panel is docked to the right side of the editor and supports three modes: **Ask**, **Edit**, and **Create**.
+Access the Nexus Assistant by clicking the **AI** button in the toolbar (`Ctrl+Shift+A`). The chat panel is docked to the right side of the editor and supports three modes: **Ask**, **Edit**, and **Create**. When a multi-agent xAI model is selected, Ask mode automatically routes to the **xAI Responses API** for multi-agent collaborative research.
 
 #### Features
 
@@ -562,7 +564,7 @@ AI Edit Mode allows you to make AI-powered edits directly to your document with 
 2. Select **Edit** from the mode dropdown
 3. The send button turns green with an edit icon
 
-> **Note:** Edit Mode is available with Claude, OpenAI, and Google Gemini providers. xAI models are hidden from the model dropdown when Edit mode is selected.
+> **Note:** Edit Mode is available with all four providers: Claude, OpenAI, Google Gemini, and xAI. xAI multi-agent models are restricted from Edit mode (no diff support), but standard Grok models support Edit mode via JSON output.
 
 #### Making Edits
 

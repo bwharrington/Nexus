@@ -45,7 +45,7 @@ Edit Mode is an AI-assisted document editing system. The user describes changes 
 3. The input placeholder updates to: *"Describe the changes you want... (e.g., 'Add a table of contents')"*
 4. The send button turns green with an edit icon.
 
-**Provider restriction**: The mode dropdown hides the xAI (Grok) provider when Edit is selected because Grok does not support structured JSON output. If xAI is the active provider when the user switches to Edit mode, the mode resets automatically to Ask.
+**Provider restriction**: Edit mode is supported for **all four providers**: Claude, OpenAI, Google Gemini, and xAI. xAI uses `response_format: json_object` on the chat completions API to enforce JSON output. Only xAI **multi-agent models** (model IDs containing `multi-agent`) are restricted from Edit mode — selecting one auto-resets the mode to Ask.
 
 ---
 
@@ -160,7 +160,7 @@ The full sequence from user action to applied changes:
         ▼
 4. useAIDiffEdit.requestEdit() called with:
    - prompt (user instruction + document content)
-   - provider (claude | openai | gemini)
+   - provider (claude | openai | gemini | xai)
    - model (selected model ID)
    - requestId (for cancellation)
    - webSearchEnabled (boolean)
@@ -217,6 +217,13 @@ The full sequence from user action to applied changes:
 - **System prompt**: Prepended as the first user message (Gemini does not have a dedicated system role)
 - **Endpoint**: `https://generativelanguage.googleapis.com/v1beta`
 
+### xAI (Grok)
+
+- **Function**: `callXAiApiWithJsonMode()`
+- **JSON mode**: `response_format: { type: 'json_object' }` enforced on the chat completions API
+- **System prompt**: Sent as a `system` role message in the messages array
+- **Endpoint**: `https://api.x.ai/v1/chat/completions`
+
 ### Provider Restrictions
 
 | Provider | Edit Mode Supported |
@@ -224,7 +231,8 @@ The full sequence from user action to applied changes:
 | Claude (Anthropic) | ✓ |
 | OpenAI | ✓ |
 | Google Gemini | ✓ |
-| xAI (Grok) | ✗ — no structured JSON output |
+| xAI (Grok) standard models | ✓ — uses `response_format: json_object` |
+| xAI multi-agent models | ✗ — no diff/structured output support |
 
 ---
 

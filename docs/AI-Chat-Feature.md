@@ -65,7 +65,7 @@ The Nexus AI feature allows users to interact with AI language models directly w
 - **Edit Mode**: The AI modifies the current Markdown document based on user instructions. Changes are presented in a **dedicated diff tab** with a unified inline diff view, where the user can accept or reject changes on a per-hunk basis.
 - **Create Mode**: The AI generates a complete new Markdown document from a user description. Optional file attachments provide context. The result opens as a new document tab in preview mode.
 
-Four AI providers are supported: **Claude (Anthropic)**, **OpenAI**, **Google Gemini**, and **xAI (Grok)**. Edit mode is supported by Claude, OpenAI, and Gemini. xAI is restricted from Edit mode only (structured output not yet available). Ask and Create modes are supported by all four providers.
+Four AI providers are supported: **Claude (Anthropic)**, **OpenAI**, **Google Gemini**, and **xAI (Grok)**. All four providers support Ask, Edit, and Create modes. xAI multi-agent models (model IDs containing `multi-agent`) are restricted from Edit mode only — standard xAI Grok models support all three modes.
 
 ---
 
@@ -452,7 +452,7 @@ Every assistant message (in both Ask and multi-agent modes) includes a **New Fil
 - The placeholder text changes to:
   - `"Describe the changes you want... (e.g., 'Add a table of contents')"` — default
   - `"Describe changes... (web search enabled)"` — when web search is toggled on
-- Edit mode is supported for **Claude**, **OpenAI**, and **Google Gemini** providers. When xAI is selected as the model, the Edit mode option is hidden from the mode dropdown
+- Edit mode is supported for **all four providers**: Claude, OpenAI, Google Gemini, and xAI. xAI uses `response_format: json_object` on the chat completions API to enforce JSON output. xAI multi-agent models (e.g., `grok-4-multi-agent`) are still restricted from Edit mode (no diff support)
 - Edit mode is disabled while a diff tab is already open
 - If a Serper key is configured, a **globe icon** toggle is shown next to the input. When enabled, a web search runs before the edit request and its results are included as context in the edit prompt
 
@@ -753,16 +753,36 @@ Create requests can be canceled at any time using the Cancel button. All in-flig
 
 ### xAI (Grok)
 
-- **API Endpoint**: `https://api.x.ai/v1/chat/completions`
+- **API Endpoint**: `https://api.x.ai/v1/chat/completions` (chat); `https://api.x.ai/v1/responses` (multi-agent)
 - **Authentication**: `Bearer` token in `Authorization` header
 - **Default Fallback Models**: Grok 4, Grok 4.1, Grok 4.1 Reasoning
-- **Ask Mode**: Supported
-- **Edit Mode**: Not supported (no structured output; restricted via `aiProviderModeRestrictions.ts`)
-- **Create Mode**: Supported
+- **Ask Mode**: Supported (standard Grok models use chat completions; multi-agent models use the Responses API)
+- **Edit Mode**: Supported for standard Grok models via `response_format: json_object`; multi-agent models are restricted from Edit mode
+- **Create Mode**: Supported (including multi-agent models)
 - **Image Attachments**: Data URL format with `image_url` (same as OpenAI format)
 - **Text Attachments**: Inline text content format
 - **Model Filtering**: Only `grok-4` models; excludes image, video, and image-generation variants
 - **Validation**: Test call to list models endpoint
+
+#### Multi-Agent Mode (xAI Responses API)
+
+When a **multi-agent model** is selected (any model ID containing `multi-agent`, e.g., `grok-4-multi-agent`), Ask mode automatically uses the **xAI Responses API** (`POST /v1/responses`) instead of chat completions. This enables multi-turn stateful conversations backed by multiple collaborating AI agents.
+
+**How it works:**
+
+- The request is sent with a system prompt instructing the AI to use all available tools and answer thoroughly
+- Built-in tools can be toggled in the message input toolbar: **Web Search** (`web_search`), **X Search** (`x_search`), and **Code Execution** (`code_execution`) — default enabled: `web_search`, `x_search`
+- **Reasoning Effort** can be toggled between **Low** (4 agents) and **High** (16 agents) via a button in the toolbar
+- The API returns a `response_id` that is passed back as `previous_response_id` on subsequent requests, enabling multi-turn conversation continuity
+- Token usage (including `reasoning_tokens`) is tracked and available per response
+
+**Progress display:**
+
+The **MultiAgentProgress** component shows live activity during the request:
+- **Streaming mode** (when verbose stream events arrive via `ai:multi-agent-stream` IPC): shows agent names, active tool calls as chips, reasoning token count, total event count, and a live content preview of the streaming response
+- **Fallback mode** (no stream data): shows rotating typewriter messages ("Agents collaborating...", "Research in progress...", etc.)
+
+Multi-agent responses support the same **Copy** and **New File** buttons as standard Ask mode responses. Multi-agent message history is included in the Chat Context Toggle used by Edit and Create modes.
 
 ---
 
@@ -792,6 +812,8 @@ Create requests can be canceled at any time using the Cancel button. All in-flig
 | `src/renderer/hooks/useAIAsk.ts`                        | Ask mode stateless Q&A logic with web search integration                     |
 | `src/renderer/hooks/useAIDiffEdit.ts`                   | Edit mode logic, diff computation, opens diff tab                            |
 | `src/renderer/hooks/useAICreate.ts`                     | Create mode two-phase pipeline (generate + name)                             |
+| `src/renderer/hooks/useAIMultiAgent.ts`                 | Multi-agent mode: Responses API call, stream event handling, multi-turn state |
+| `src/renderer/components/MultiAgentProgress.tsx`        | Multi-agent progress UI: streaming agent/tool activity or fallback typewriter |
 | `src/renderer/hooks/useWebSearch.ts`                    | Two-phase web search pipeline (query optimization + Serper execution)        |
 | `src/renderer/hooks/useAIProviderCache.ts`              | App-level provider status and model cache (shared across components)         |
 | `src/renderer/hooks/useSpellCheck.ts`                   | Reusable hook for spell-check menu state and correction/dictionary callbacks  |
@@ -811,7 +833,8 @@ Create requests can be canceled at any time using the Cancel button. All in-flig
 | `src/main/services/claudeApi.ts`       | Claude API integration (chat, edit, model listing, validation)       |
 | `src/main/services/openaiApi.ts`       | OpenAI API integration (chat, JSON mode, model listing, validation)  |
 | `src/main/services/geminiApi.ts`       | Gemini API integration (chat, JSON mode, model listing, validation)  |
-| `src/main/services/xaiApi.ts`          | xAI API integration (chat, model listing, validation)                |
+| `src/main/services/xaiApi.ts`          | xAI API integration (chat, JSON mode for edit, model listing, validation) |
+| `src/main/services/xaiMultiAgentApi.ts` | xAI Responses API integration (multi-agent requests, verbose streaming) |
 | `src/main/services/secureStorage.ts`   | Encrypted API key storage using Electron safeStorage                 |
 | `src/main/secureStorageIpcHandlers.ts` | IPC handlers for API key operations                                  |
 
@@ -825,7 +848,9 @@ All AI operations communicate between the renderer and main process via Electron
 | `ai:openai-chat-request`        | Renderer → Main | Send chat message to OpenAI                      |
 | `ai:gemini-chat-request`        | Renderer → Main | Send chat message to Google Gemini               |
 | `ai:chat-request`               | Renderer → Main | Send chat message to xAI                         |
-| `ai:edit-request`               | Renderer → Main | Send edit request (Claude, OpenAI, or Gemini)    |
+| `ai:multi-agent-request`        | Renderer → Main | Send multi-agent request via xAI Responses API   |
+| `ai:multi-agent-stream`         | Main → Renderer | Push verbose stream events during multi-agent request |
+| `ai:edit-request`               | Renderer → Main | Send edit request (Claude, OpenAI, Gemini, or xAI) |
 | `ai:cancel-request`             | Renderer → Main | Cancel an active chat request                    |
 | `ai:cancel-edit-request`        | Renderer → Main | Cancel an active edit request                    |
 | `ai:list-claude-models`         | Renderer → Main | List available Claude models                     |
@@ -872,6 +897,17 @@ Request cancellation uses `AbortController` instances tracked by unique request 
 - `webSearchPhase: WebSearchPhase` - Current web search sub-phase from `useWebSearch`: `'optimizing'`, `'searching'`, or `null`
 - `askError: string | null` - Current error message
 - Exposes: `submitAsk`, `cancelAsk`, `clearAsk`
+
+**Multi-Agent State** (managed by `useAIMultiAgent` hook):
+
+- `multiAgentMessages: AIMessage[]` - Conversation history shown in the panel
+- `isMultiAgentLoading: boolean` - Whether a multi-agent request is in progress
+- `multiAgentPhase: MultiAgentPhase` - Current phase: `'agents-working'` or `null`
+- `multiAgentError: string | null` - Current error message
+- `lastUsage: MultiAgentUsageInfo | null` - Token usage for the last response (`input_tokens`, `output_tokens`, `reasoning_tokens`)
+- `streamState: MultiAgentStreamState | null` - Live stream data: events buffer (last 50), event count, reasoning tokens, active tool call names, agent activity descriptions, content preview (first 200 chars)
+- `previousResponseId: string | null` - xAI response ID used for multi-turn continuity
+- Exposes: `submitMultiAgent`, `cancelMultiAgent`, `clearMultiAgent`
 
 **Create State** (managed by `useAICreate` hook):
 

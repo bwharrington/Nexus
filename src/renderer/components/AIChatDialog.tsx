@@ -204,6 +204,7 @@ export function AIChatDialog({
         isMultiAgentLoading,
         multiAgentPhase,
         multiAgentError,
+        streamState: multiAgentStreamState,
         submitMultiAgent,
         cancelMultiAgent,
         clearMultiAgent,
@@ -753,6 +754,7 @@ export function AIChatDialog({
                         multiAgentPhase={multiAgentPhase}
                         multiAgentError={multiAgentError}
                         multiAgentAgentCount={reasoningEffort === 'low' ? 4 : 16}
+                        multiAgentStreamState={multiAgentStreamState}
                         messagesEndRef={messagesEndRef}
                         onCreateFileFromMessage={handleCreateFileFromMessage}
                         chatSearchQuery={chatSearchQuery}

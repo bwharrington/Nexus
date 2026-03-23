@@ -9,15 +9,23 @@ import { useWindowTitle, useFileOperations, useExternalFileWatcher, getFileType,
 import { SplitDivider } from './styles/editor.styles';
 import type { AttachedFile } from './components/FileAttachmentsList';
 import type { IFile } from './types';
+import { LogLevel, shouldLog } from '../shared/logLevel';
 
 // Intercept console methods and forward to main process log file.
 // error/warn are sent immediately; log/info are batched to reduce IPC traffic.
+// Gated by rendererLogLevel — original console methods always fire for DevTools visibility.
 const originalConsole = {
     log: console.log,
     warn: console.warn,
     error: console.error,
     info: console.info,
 };
+
+let rendererLogLevel: LogLevel = LogLevel.Info;
+
+export function setRendererLogLevel(level: LogLevel) {
+    rendererLogLevel = level;
+}
 
 let logBatch: Array<{ level: string; args: unknown[] }> = [];
 let logFlushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -40,23 +48,23 @@ function bufferLog(level: string, args: unknown[]) {
 
 console.log = (...args: unknown[]) => {
     originalConsole.log(...args);
-    bufferLog('log', args);
+    if (shouldLog(LogLevel.Debug, rendererLogLevel)) bufferLog('log', args);
 };
 
 console.info = (...args: unknown[]) => {
     originalConsole.info(...args);
-    bufferLog('info', args);
+    if (shouldLog(LogLevel.Info, rendererLogLevel)) bufferLog('info', args);
 };
 
 // Errors and warnings sent immediately — timing matters for diagnostics
 console.warn = (...args: unknown[]) => {
     originalConsole.warn(...args);
-    window.electronAPI.sendConsoleLog('warn', ...args);
+    if (shouldLog(LogLevel.Warn, rendererLogLevel)) window.electronAPI.sendConsoleLog('warn', ...args);
 };
 
 console.error = (...args: unknown[]) => {
     originalConsole.error(...args);
-    window.electronAPI.sendConsoleLog('error', ...args);
+    if (shouldLog(LogLevel.Error, rendererLogLevel)) window.electronAPI.sendConsoleLog('error', ...args);
 };
 
 // Global renderer error handlers — forward uncaught errors to the main process log
@@ -203,6 +211,12 @@ function AppContent() {
     const appConfigRef = useRef(state.config);
     appConfigRef.current = state.config;
 
+    // Sync log level to renderer gating and main process whenever config changes
+    useEffect(() => {
+        const level = (state.config.logLevel || 'info') as LogLevel;
+        setRendererLogLevel(level);
+    }, [state.config.logLevel]);
+
     const persistAiChatLayout = useCallback((updates: { aiChatDockWidth?: number }) => {
         const nextConfig = { ...appConfigRef.current, ...updates };
         dispatch({ type: 'SET_CONFIG', payload: nextConfig });
@@ -222,6 +236,7 @@ function AppContent() {
 
     const handleToggleFileDirectory = useCallback(() => {
         const next = !fileDirOpen;
+        console.log(`[App] File directory panel ${next ? 'opened' : 'closed'}`);
         setFileDirOpen(next);
         persistFileDirLayout({ fileDirectoryOpen: next });
     }, [fileDirOpen, persistFileDirLayout]);
@@ -269,11 +284,13 @@ function AppContent() {
     }, [isResizingFileDir, persistFileDirLayout]);
 
     const handleOpenAIChat = useCallback(() => {
+        console.log('[App] AI chat panel opened');
         setAiDockWidth(DEFAULT_AI_DOCK_WIDTH);
         setAiChatOpen(true);
     }, []);
 
     const handleCloseAIChat = useCallback(() => {
+        console.log('[App] AI chat panel closed');
         setAiChatOpen(false);
     }, []);
 
@@ -281,10 +298,12 @@ function AppContent() {
     const [settingsOpen, setSettingsOpen] = useState(false);
 
     const handleOpenSettings = useCallback(() => {
+        console.log('[App] Settings dialog opened');
         setSettingsOpen(true);
     }, []);
 
     const handleCloseSettings = useCallback(() => {
+        console.log('[App] Settings dialog closed');
         setSettingsOpen(false);
     }, []);
 

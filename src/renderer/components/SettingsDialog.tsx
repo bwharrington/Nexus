@@ -30,6 +30,7 @@ import {
     Tab,
     Tooltip,
     SelectChangeEvent,
+    Divider,
     styled,
 } from '@mui/material';
 import {
@@ -629,7 +630,11 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     }, [dispatch, cacheRefreshStatuses]);
 
     // Stable event handlers for JSX — avoids inline lambdas in render
-    const handleTabChange = useCallback((_: React.SyntheticEvent, newValue: number) => setActiveTab(newValue), []);
+    const tabNames = ['Basic', 'AI', 'Web Search', 'Files'];
+    const handleTabChange = useCallback((_: React.SyntheticEvent, newValue: number) => {
+        console.log(`[Settings] Tab changed to: ${tabNames[newValue]}`);
+        setActiveTab(newValue);
+    }, []);
     const handleApiKeyInputChange = useCallback((provider: SettingsProvider, value: string) => {
         setApiKeyInputs(prev => ({ ...prev, [provider]: value }));
     }, []);
@@ -639,6 +644,11 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     const handleSilentToggle = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         handleSilentFileUpdatesToggle(e.target.checked);
     }, [handleSilentFileUpdatesToggle]);
+    const handleLogLevelSelect = useCallback((e: SelectChangeEvent) => {
+        const value = e.target.value;
+        updateConfig({ logLevel: value });
+        void window.electronAPI.setLogLevel(value);
+    }, [updateConfig]);
     const handleSerperLinkClick = useCallback(() => {
         void window.electronAPI.openExternal('https://serper.dev');
     }, []);
@@ -697,34 +707,60 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                 {/* Tab 0: Basic */}
                 {activeTab === 0 && (
                     <>
-                        <FormControl size="small" fullWidth sx={{ mb: 2 }}>
-                            <InputLabel>Default Line Ending</InputLabel>
-                            <Select
-                                value={config?.defaultLineEnding || 'CRLF'}
-                                label="Default Line Ending"
-                                onChange={handleLineEndingSelect}
-                            >
-                                <MenuItem value="CRLF">CRLF (Windows)</MenuItem>
-                                <MenuItem value="LF">LF (Unix/Mac)</MenuItem>
-                            </Select>
-                            <FormHelperText>Line ending format for new files</FormHelperText>
-                        </FormControl>
+                        <Box sx={{ py: 1 }}>
+                            <FormControl size="small" fullWidth>
+                                <InputLabel>Default Line Ending</InputLabel>
+                                <Select
+                                    value={config?.defaultLineEnding || 'CRLF'}
+                                    label="Default Line Ending"
+                                    onChange={handleLineEndingSelect}
+                                >
+                                    <MenuItem value="CRLF">CRLF (Windows)</MenuItem>
+                                    <MenuItem value="LF">LF (Unix/Mac)</MenuItem>
+                                </Select>
+                                <FormHelperText>Line ending format for new files</FormHelperText>
+                            </FormControl>
+                        </Box>
 
-                        <FormControl size="small" fullWidth sx={{ mb: 2 }}>
-                            <FormControlLabel
-                                control={
-                                    <Switch
-                                        checked={config?.silentFileUpdates !== false}
-                                        onChange={handleSilentToggle}
-                                        size="small"
-                                    />
-                                }
-                                label="Silent File Updates"
-                            />
-                            <FormHelperText>
-                                When enabled, externally modified files are reloaded automatically in place. When disabled, you will be prompted before refreshing.
-                            </FormHelperText>
-                        </FormControl>
+                        <Divider />
+
+                        <Box sx={{ py: 1 }}>
+                            <FormControl size="small" fullWidth>
+                                <FormControlLabel
+                                    control={
+                                        <Switch
+                                            checked={config?.silentFileUpdates !== false}
+                                            onChange={handleSilentToggle}
+                                            size="small"
+                                        />
+                                    }
+                                    label="Silent File Updates"
+                                />
+                                <FormHelperText>
+                                    When enabled, externally modified files are reloaded automatically in place. When disabled, you will be prompted before refreshing.
+                                </FormHelperText>
+                            </FormControl>
+                        </Box>
+
+                        <Divider />
+
+                        <Box sx={{ py: 1 }}>
+                            <FormControl size="small" fullWidth>
+                                <InputLabel>Log Level</InputLabel>
+                                <Select
+                                    value={config?.logLevel || 'info'}
+                                    label="Log Level"
+                                    onChange={handleLogLevelSelect}
+                                >
+                                    <MenuItem value="debug">Debug (Most Verbose)</MenuItem>
+                                    <MenuItem value="info">Info</MenuItem>
+                                    <MenuItem value="warn">Warn</MenuItem>
+                                    <MenuItem value="error">Error Only</MenuItem>
+                                    <MenuItem value="off">Off</MenuItem>
+                                </Select>
+                                <FormHelperText>Controls which messages are written to the log file</FormHelperText>
+                            </FormControl>
+                        </Box>
                     </>
                 )}
 

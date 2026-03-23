@@ -53,6 +53,7 @@ export interface IConfig {
   devToolsOpen?: boolean;
   aiModels?: AIModelsConfig;
   silentFileUpdates?: boolean;
+  logLevel?: string;
   imageSaveFolder?: string;
   aiChatDockWidth?: number;
   aiChatMode?: AIChatMode;
@@ -109,6 +110,30 @@ export interface AIMultiAgentResponse {
   responseId?: string;
   usage?: { input_tokens: number; output_tokens: number; reasoning_tokens?: number };
   error?: string;
+}
+
+// Multi-agent verbose streaming types (mirrors shared/multiAgentStreamTypes.ts)
+export interface MultiAgentStreamEventGlobal {
+  eventType: string;
+  data: Record<string, unknown>;
+  timestamp: number;
+}
+
+export interface MultiAgentStreamUpdateGlobal {
+  type: 'agent-activity' | 'tool-call' | 'reasoning' | 'content-delta' | 'raw' | 'done' | 'error';
+  agentName?: string;
+  agentIndex?: number;
+  toolName?: string;
+  toolInput?: string;
+  reasoningTokens?: number;
+  contentDelta?: string;
+  message?: string;
+  rawEvent: MultiAgentStreamEventGlobal;
+}
+
+export interface MultiAgentStreamDataGlobal {
+  requestId: string;
+  event: MultiAgentStreamUpdateGlobal;
 }
 
 export interface AIModelsResponse {
@@ -234,7 +259,8 @@ export interface ElectronAPI {
   
   // Log operations
   getLogPath: () => Promise<string>;
-  
+  setLogLevel: (level: string) => Promise<void>;
+
   // Console logging
   sendConsoleLog: (level: string, ...args: any[]) => void;
   
@@ -268,6 +294,7 @@ export interface ElectronAPI {
     previousResponseId?: string,
     requestId?: string,
   ) => Promise<AIMultiAgentResponse>;
+  onMultiAgentStream: (callback: (data: MultiAgentStreamDataGlobal) => void) => () => void;
   cancelAIChatRequest: (requestId: string) => Promise<{ success: boolean; cancelled: boolean }>;
   cancelAIEditRequest: (requestId: string) => Promise<{ success: boolean; cancelled: boolean }>;
   aiEditRequest: (messages: AIMessage[], model: string, provider: 'claude' | 'openai' | 'gemini' | 'xai', requestId?: string) => Promise<AIEditResponse>;

@@ -2,12 +2,14 @@ import * as fs from 'fs/promises';
 import * as fsSync from 'fs';
 import * as path from 'path';
 import { app } from 'electron';
+import { LogLevel, shouldLog } from '../shared/logLevel';
 
 let logsDir: string;
 let currentLogDate: string = '';
 let currentLogFilePath: string = '';
 let logBuffer: string[] = [];
 let isWriting = false;
+let currentLevel: LogLevel = LogLevel.Info;
 
 // Get the YYYY-MM-DD string for today in local time
 function getTodayDateString(): string {
@@ -34,8 +36,45 @@ function getOrRotateLogFilePath(): string {
     return currentLogFilePath;
 }
 
+// Internal: format and buffer a log entry
+function writeLogEntry(levelTag: string, message: string, data?: any) {
+    const timestamp = new Date().toISOString();
+    const logLine = data
+        ? `[${timestamp}] [${levelTag}] ${message}\n${JSON.stringify(data, null, 2)}\n\n`
+        : `[${timestamp}] [${levelTag}] ${message}\n\n`;
+
+    // Console output
+    if (levelTag === 'ERROR') {
+        console.error(`[${levelTag}] ${message}`, data || '');
+    } else if (levelTag === 'WARN') {
+        console.warn(`[${levelTag}] ${message}`, data || '');
+    } else {
+        console.log(`[${levelTag}] ${message}`, data || '');
+    }
+
+    // Buffer for file write
+    logBuffer.push(logLine);
+
+    // Flush after a short delay
+    setTimeout(flushLogs, 100);
+}
+
+// Set the active log level
+export function setLogLevel(level: LogLevel) {
+    currentLevel = level;
+}
+
+// Get the active log level
+export function getLogLevel(): LogLevel {
+    return currentLevel;
+}
+
 // Initialize logger — creates the logs directory and appends a session-start header
-export function initLogger() {
+export function initLogger(initialLevel?: LogLevel) {
+    if (initialLevel) {
+        currentLevel = initialLevel;
+    }
+
     const appPath = app.isPackaged
         ? path.dirname(app.getPath('exe'))
         : app.getAppPath();
@@ -60,7 +99,7 @@ export function initLogger() {
         // Ignore write errors during init
     }
 
-    log('Logger initialized', { appPath, logsDir, logFilePath: currentLogFilePath, isPackaged: app.isPackaged });
+    logInfo('Logger initialized', { appPath, logsDir, logFilePath: currentLogFilePath, isPackaged: app.isPackaged, logLevel: currentLevel });
 }
 
 // Write buffered logs to file (handles date rollover between flushes)
@@ -83,37 +122,36 @@ async function flushLogs() {
     }
 }
 
-// Log a message with optional data
-export function log(message: string, data?: any) {
-    const timestamp = new Date().toISOString();
-    const logLine = data
-        ? `[${timestamp}] ${message}\n${JSON.stringify(data, null, 2)}\n\n`
-        : `[${timestamp}] ${message}\n\n`;
+// Level-specific logging methods
 
-    // Console output
-    console.log(`[LOG] ${message}`, data || '');
-
-    // Buffer for file write
-    logBuffer.push(logLine);
-
-    // Flush after a short delay
-    setTimeout(flushLogs, 100);
+export function logDebug(message: string, data?: any) {
+    if (!shouldLog(LogLevel.Debug, currentLevel)) return;
+    writeLogEntry('DEBUG', message, data);
 }
 
-// Log an error
+export function logInfo(message: string, data?: any) {
+    if (!shouldLog(LogLevel.Info, currentLevel)) return;
+    writeLogEntry('INFO', message, data);
+}
+
+export function logWarn(message: string, data?: any) {
+    if (!shouldLog(LogLevel.Warn, currentLevel)) return;
+    writeLogEntry('WARN', message, data);
+}
+
 export function logError(message: string, error: any) {
-    const timestamp = new Date().toISOString();
+    if (!shouldLog(LogLevel.Error, currentLevel)) return;
     const errorInfo = {
         message: error?.message || String(error),
         stack: error?.stack,
-        ...error,
+        ...(error && typeof error === 'object' ? error : {}),
     };
-    const logLine = `[${timestamp}] ERROR: ${message}\n${JSON.stringify(errorInfo, null, 2)}\n\n`;
+    writeLogEntry('ERROR', message, errorInfo);
+}
 
-    console.error(`[ERROR] ${message}`, error);
-
-    logBuffer.push(logLine);
-    setTimeout(flushLogs, 100);
+// Backward-compatible alias — maps to logInfo
+export function log(message: string, data?: any) {
+    logInfo(message, data);
 }
 
 // Force flush logs (call before app quit)

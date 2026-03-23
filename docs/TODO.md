@@ -1,2 +1,1 @@
 - Maybe fix the green check to look more like the app in the AI Chat stepper
-- Loggin levels and logging on/off in the settings.
