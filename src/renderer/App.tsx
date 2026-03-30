@@ -456,8 +456,8 @@ function AppContent() {
                 if (activeFile && activeFile.fileType !== 'text') {
                     // Get current scroll position before toggling
                     const element = activeFile.viewMode === 'edit'
-                        ? document.querySelector('textarea') as HTMLTextAreaElement
-                        : document.querySelector('[class*="MarkdownPreview"]') as HTMLDivElement;
+                        ? document.querySelector('[contenteditable="true"]') as HTMLElement
+                        : document.querySelector('[data-preview-scroll]') as HTMLElement;
                     const scrollPosition = element?.scrollTop || 0;
 
                     dispatch({

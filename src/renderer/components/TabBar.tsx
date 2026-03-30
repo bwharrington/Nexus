@@ -93,8 +93,12 @@ const FileTab = React.memo(function FileTab({ file, isActive }: FileTabProps) {
 
     const handleToggleViewMode = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
-        dispatch({ type: 'TOGGLE_VIEW_MODE', payload: { id: file.id } });
-    }, [file.id, dispatch]);
+        const editElement = document.querySelector('[contenteditable="true"]') as HTMLElement;
+        const previewElement = document.querySelector('[data-preview-scroll]') as HTMLElement;
+        const element = file.viewMode === 'edit' ? editElement : previewElement;
+        const scrollPosition = element?.scrollTop || 0;
+        dispatch({ type: 'TOGGLE_VIEW_MODE', payload: { id: file.id, scrollPosition } });
+    }, [file.id, file.viewMode, dispatch]);
 
     const handleClose = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();

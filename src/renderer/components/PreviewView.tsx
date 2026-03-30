@@ -213,6 +213,7 @@ export function PreviewView() {
                 {isRstFile ? (
                     <Box
                         ref={previewRef}
+                        data-preview-scroll
                         onClick={handlePreviewClick}
                         onDoubleClick={handlePreviewDoubleClick}
                         onScroll={handleScroll}
@@ -223,6 +224,7 @@ export function PreviewView() {
                 ) : (
                     <PreviewContainer
                         ref={previewRef}
+                        data-preview-scroll
                         onClick={handlePreviewClick}
                         onDoubleClick={handlePreviewDoubleClick}
                         onScroll={handleScroll}
