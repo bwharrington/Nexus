@@ -52,7 +52,13 @@ For development, you can use a `.env` file to configure AI API keys:
 
 **Note**: In production builds, API keys are stored securely using the system's credential storage (DPAPI/Keychain/libsecret) via the Settings dialog. The `.env` file is only for development convenience.
 
-## Building
+## Building and Installing
+
+https://github.com/bwharrington/Nexus.git
+
+1 - Clone the repo wherever
+2 - Open the project in VS Code the root of your repo
+3 - run,  one of the following
 
 ```bash
 # Windows
@@ -64,6 +70,9 @@ npm run package-mac
 # Linux
 npm run package-linux
 ```
+
+4 - Execute the installer in release\Nexus-Setup.exe
+(I think you will get a warning about the software your installing)
 
 ## Documentation
 
